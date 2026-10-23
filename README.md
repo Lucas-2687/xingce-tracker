@@ -32,6 +32,8 @@ npm run dev
 2. 在 Vercel 导入自己的源码仓库，选择 Next.js 框架。
 3. 在项目 Production 环境中配置下表变量，然后部署。
 
+关联完成后，推送生产分支 `main` 会触发 Vercel 自动构建；其他分支可用于预览。每个部署者使用自己的数据库和登录配置。
+
 | 变量 | 用途 |
 | --- | --- |
 | `TURSO_DATABASE_URL` | 自己的 libSQL 数据库 URL |
