@@ -2,6 +2,7 @@
   "name": "xingce-tracker",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
@@ -9,7 +10,8 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --exclude scripts/privacy-check.test.mjs",
+    "test:privacy": "node --test scripts/privacy-check.test.mjs",
     "test:http": "node scripts/smoke.mjs",
     "privacy:check": "node scripts/privacy-check.mjs",
     "password:hash": "node scripts/hash-password.mjs",
@@ -20,7 +22,8 @@
     "jose": "6.2.13",
     "next": "16.4.2",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

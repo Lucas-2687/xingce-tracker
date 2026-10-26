@@ -15,7 +15,7 @@ export function sameOrigin(request: Request) {
   } catch { return false; }
 }
 export async function readJson(request: Request, maxBytes: number): Promise<unknown> {
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) throw new Error("invalid_json");
+  if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") throw new Error("invalid_json");
   if (Number(request.headers.get("content-length") || 0) > maxBytes) throw new Error("payload_too_large");
   const reader = request.body?.getReader();
   if (!reader) throw new Error("invalid_json");

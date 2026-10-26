@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import LoginForm from "../app/LoginForm";
+import { SessionGuard } from "./lib/sessionGuard";
 import {
   RecordForm,
   type RecordFormValue,
@@ -47,6 +49,10 @@ import {
   savePendingData,
   savePracticeRecords,
   saveRecords,
+  SESSION_CHANGE_KEY,
+  SESSION_CHANNEL_NAME,
+  notifySessionChange,
+  sessionChangeMarker,
   type PendingSyncData,
 } from "./lib/storage";
 import type {
@@ -573,9 +579,17 @@ function DeleteDialog({
 type CloudData = { revision: number; records: ExamRecord[]; practiceRecords: PracticeRecord[] };
 type PendingData = PendingSyncData;
 
-export default function App({ userName, userId }: { userName: string; userId: string }) {
+type AppProps = { userName: string; userId: string; sessionExpiresAt: number };
+
+export default function App(props: AppProps) {
+  const [notice, setNotice] = useState("");
+  const lock = useCallback(() => setNotice("登录已失效，成绩已隐藏。本机未同步修改仍保留，请重新登录后继续。"), []);
+  return notice ? <LoginForm notice={notice} /> : <AuthenticatedApp {...props} onLock={lock} onNotice={setNotice} />;
+}
+
+function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice }: AppProps & { onLock: () => void; onNotice: (notice: string) => void }) {
   configureStorage(userId);
-  const [authExpired, setAuthExpired] = useState(false);
+  const [guard] = useState(() => new SessionGuard(() => { notifySessionChange(); onLock(); }, sessionExpiresAt));
   const [records, setRecords] = useState<ExamRecord[]>([]);
   const [practiceRecords, setPracticeRecords] = useState<PracticeRecord[]>([]);
   const [dataReady, setDataReady] = useState(false);
@@ -600,25 +614,56 @@ export default function App({ userName, userId }: { userName: string; userId: st
   const conflictRevisionRef = useRef<number | null>(null);
   const latestDataRef = useRef<CloudData>({ revision: 0, records: [], practiceRecords: [] });
 
+  useEffect(() => {
+    guard.start();
+    const marker = sessionChangeMarker();
+    const lockFromOtherTab = () => { if (guard.active) { guard.dispose(); onLock(); } };
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(SESSION_CHANNEL_NAME) : null;
+    if (channel) channel.onmessage = lockFromOtherTab;
+    const check = () => {
+      if (sessionChangeMarker() !== marker) lockFromOtherTab();
+      else if (Date.now() >= sessionExpiresAt) guard.lock();
+    };
+    const changed = (event: StorageEvent) => {
+      if (event.storageArea === window.localStorage && (event.key === SESSION_CHANGE_KEY || event.key === null)) lockFromOtherTab();
+    };
+    const timeout = window.setTimeout(() => guard.lock(), Math.max(0, sessionExpiresAt - Date.now()));
+    window.addEventListener("storage", changed);
+    window.addEventListener("focus", check);
+    window.addEventListener("pageshow", check);
+    document.addEventListener("visibilitychange", check);
+    check();
+    return () => {
+      guard.dispose();
+      channel?.close();
+      window.clearTimeout(timeout);
+      window.removeEventListener("storage", changed);
+      window.removeEventListener("focus", check);
+      window.removeEventListener("pageshow", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [guard, onLock, sessionExpiresAt]);
+
   const syncPending = useCallback(async () => {
-    if (syncingRef.current || !pendingRef.current) return;
+    if (!guard.active || syncingRef.current || !pendingRef.current) return;
     syncingRef.current = true;
     try {
-      while (pendingRef.current) {
+      while (guard.active && pendingRef.current) {
         const pending: PendingData = pendingRef.current;
         setSyncState("saving");
-        const response = await fetch("/api/data", {
+        const response = await guard.request<{ revision: number }>("/api/data", {
           method: "PUT",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(pending),
           signal: AbortSignal.timeout(10_000),
         });
-        if (response.status === 401) { setAuthExpired(true); throw new Error("sign_in_required"); }
+        if (!guard.active) return;
         let revision: number;
         if (response.status === 409) {
-          const cloudResponse = await fetch("/api/data", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
-          if (!cloudResponse.ok) throw new Error("无法核对云端记录");
-          const cloud = await cloudResponse.json() as CloudData;
+          const cloudResponse = await guard.request<CloudData>("/api/data", { cache: "no-store" });
+          if (!guard.active) return;
+          if (!cloudResponse.ok || !cloudResponse.data) throw new Error("无法核对云端记录");
+          const cloud = cloudResponse.data;
           if (JSON.stringify([cloud.records, cloud.practiceRecords]) !==
               JSON.stringify([pending.records, pending.practiceRecords])) {
             conflictRevisionRef.current = cloud.revision;
@@ -629,7 +674,7 @@ export default function App({ userName, userId }: { userName: string; userId: st
           revision = cloud.revision;
         } else {
           if (!response.ok) throw new Error("同步失败");
-          revision = (await response.json() as { revision: number }).revision;
+          revision = response.data!.revision;
         }
         revisionRef.current = revision;
         conflictRevisionRef.current = null;
@@ -649,23 +694,23 @@ export default function App({ userName, userId }: { userName: string; userId: st
         }
       }
     } catch {
+      if (!guard.active) return;
       setSyncState("pending");
       setToast("记录已保存在本机，联网后会继续同步。");
     } finally {
       syncingRef.current = false;
     }
-  }, []);
+  }, [guard]);
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/data", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
-      .then(async (response) => {
-        if (response.status === 401) setAuthExpired(true);
-        if (!response.ok) throw new Error("无法读取云端记录");
-        return (await response.json()) as CloudData;
+    void guard.request<CloudData>("/api/data", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok || !response.data) throw new Error("无法读取云端记录");
+        return response.data;
       })
       .then((cloud) => {
-        if (cancelled) return;
+        if (cancelled || !guard.active) return;
         saveCloudRevision(cloud.revision);
         const pending = loadPendingData();
         const localRecords = loadRecords();
@@ -690,7 +735,7 @@ export default function App({ userName, userId }: { userName: string; userId: st
         if (hasPending) void syncPending();
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled || !guard.active) return;
         const pending = loadPendingData();
         const local = pending ?? {
           revision: loadCloudRevision(),
@@ -708,10 +753,10 @@ export default function App({ userName, userId }: { userName: string; userId: st
         setToast("正在使用本机记录；网络恢复后可继续同步。");
       });
     return () => { cancelled = true; };
-  }, [syncPending]);
+  }, [guard, syncPending]);
 
   useEffect(() => {
-    if (!dataReady) return;
+    if (!dataReady || !guard.active) return;
     if (skipSyncRef.current) {
       skipSyncRef.current = false;
       return;
@@ -733,19 +778,18 @@ export default function App({ userName, userId }: { userName: string; userId: st
       void syncPending();
     }, 350);
     return () => window.clearTimeout(timeout);
-  }, [records, practiceRecords, dataReady, syncPending]);
+  }, [records, practiceRecords, dataReady, guard, syncPending]);
 
   useEffect(() => {
     const refresh = () => {
-      if (!dataReady || document.visibilityState !== "visible") return;
+      if (!guard.active || !dataReady || document.visibilityState !== "visible") return;
       if (pendingRef.current) {
         if (syncState !== "conflict") void syncPending();
         return;
       }
-      void fetch("/api/data", { cache: "no-store", signal: AbortSignal.timeout(10_000) }).then(async (response) => {
-        if (response.status === 401) { setAuthExpired(true); return; }
-        if (!response.ok) return;
-        const cloud = await response.json() as CloudData;
+      void guard.request<CloudData>("/api/data", { cache: "no-store" }).then((response) => {
+        if (!guard.active || !response.ok || !response.data) return;
+        const cloud = response.data;
         if (cloud.revision <= revisionRef.current) {
           setSyncState("synced");
           return;
@@ -768,7 +812,7 @@ export default function App({ userName, userId }: { userName: string; userId: st
     window.addEventListener("online", refresh);
     const interval = window.setInterval(refresh, 30_000);
     return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); window.clearInterval(interval); };
-  }, [dataReady, records, practiceRecords, syncPending, syncState]);
+  }, [dataReady, records, practiceRecords, guard, syncPending, syncState]);
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(""), 2600);
@@ -778,12 +822,15 @@ export default function App({ userName, userId }: { userName: string; userId: st
   const notify = (message: string) => setToast(message);
   const logout = async () => {
     if ((pendingRef.current || syncingRef.current) && !window.confirm("本机还有待同步记录。请先导出完整 JSON 备份；退出将清除本机缓存。确定退出吗？")) return;
+    guard.lock();
+    const marker = sessionChangeMarker();
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
+      const response = await fetch("/api/auth/logout", { method: "POST", signal: AbortSignal.timeout(10_000) });
       if (!response.ok) throw new Error("logout_failed");
-      clearAccountStorage();
+      // Do not erase changes made by a new login while this logout was in flight.
+      if (sessionChangeMarker() === marker) { clearAccountStorage(); notifySessionChange(); }
       window.location.replace("/");
-    } catch { notify("退出失败，请检查网络后重试。"); }
+    } catch { onNotice("退出尚未完成。本机记录仍保留，请检查网络，重新登录后再退出。"); }
   };
   const overwriteCloud = () => {
     const pending = pendingRef.current;
@@ -1087,7 +1134,6 @@ export default function App({ userName, userId }: { userName: string; userId: st
         </div>
       </header>
 
-      {authExpired && <div className="session-notice" role="alert">登录已过期，本机修改仍保留。<button className="text-button" onClick={() => window.location.reload()}>重新登录</button></div>}
 
       {tab === "simulation" &&
         (!records.length ? (

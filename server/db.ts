@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient } from "@libsql/client";
 import { createStore } from "./store";
 import { ownerId } from "./auth";

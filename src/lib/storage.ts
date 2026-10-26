@@ -4,6 +4,22 @@ import { normalizePracticeRecord, normalizeRecord } from "./dataTransfer";
 
 const PENDING_SYNC_KEY = "xingce-score-dashboard.pending-sync.v1";
 const CLOUD_REVISION_KEY = "xingce-score-dashboard.cloud-revision.v1";
+export const SESSION_CHANGE_KEY = "xingce-independent.session-change.v1";
+export const SESSION_CHANNEL_NAME = "xingce-independent.session";
+export function sessionChangeMarker(): string | null {
+  try { return window.localStorage.getItem(SESSION_CHANGE_KEY); } catch { return null; }
+}
+export function notifySessionChange(): void {
+  const marker = `${Date.now()}:${Math.random()}`;
+  try { window.localStorage.setItem(SESSION_CHANGE_KEY, marker); } catch {}
+  try {
+    if (typeof BroadcastChannel !== "undefined") {
+      const channel = new BroadcastChannel(SESSION_CHANNEL_NAME);
+      channel.postMessage(marker);
+      channel.close();
+    }
+  } catch {}
+}
 let accountId = "owner";
 const accountKey = (key: string) => `xingce-independent.${encodeURIComponent(accountId)}.${key}`;
 export function configureStorage(userId: string): void { accountId = userId; }

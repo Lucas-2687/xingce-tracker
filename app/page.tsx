@@ -13,5 +13,5 @@ export default async function Home() {
   </section></main>;
   const token = (await cookies()).get(sessionCookieName())?.value;
   const user = await verifySession(token);
-  return user ? <App key={user.userId} userName={user.displayName} userId={user.userId} /> : <LoginForm />;
+  return user ? <App key={user.userId} userName={user.displayName} userId={user.userId} sessionExpiresAt={user.expiresAt} /> : <LoginForm />;
 }

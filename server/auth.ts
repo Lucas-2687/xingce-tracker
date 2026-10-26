@@ -1,4 +1,6 @@
+import "server-only";
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import { promisify } from "node:util";
 import { SignJWT, jwtVerify } from "jose";
 
@@ -8,6 +10,7 @@ export const ownerId = () => process.env.APP_OWNER_ID || "owner";
 export const sessionCookieName = () => process.env.NODE_ENV === "production" ? "__Host-xingce-session" : "xingce-session";
 export const displayName = () => process.env.APP_DISPLAY_NAME || "我的行测轨迹";
 export function configurationReady() {
+  if (process.env.VERCEL_ENV === "preview" && process.env.APP_PREVIEW_ENABLED !== "true") return false;
   return Boolean(process.env.TURSO_DATABASE_URL && process.env.APP_PASSWORD_HASH?.match(/^scrypt:[a-f0-9]{32}:[a-f0-9]{128}$/) && (process.env.APP_SESSION_SECRET?.length ?? 0) >= 32 && (process.env.TURSO_AUTH_TOKEN || process.env.NODE_ENV !== "production"));
 }
 function signingKey() {
@@ -34,11 +37,13 @@ export async function verifySession(token: string | undefined) {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, signingKey(), { algorithms: ["HS256"], issuer: "xingce-tracker", audience: "xingce-web" });
-    if (payload.sub !== ownerId() || payload.cv !== credentialVersion()) return null;
-    return { userId: ownerId(), displayName: displayName() };
+    if (payload.sub !== ownerId() || payload.cv !== credentialVersion() || typeof payload.exp !== "number") return null;
+    return { userId: ownerId(), displayName: displayName(), expiresAt: payload.exp * 1000 };
   } catch { return null; }
 }
 export function loginRateKey(request: Request) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || "local";
+  // Only Vercel's ingress is trusted to replace this header. Other hosts share one limit.
+  const forwarded = process.env.VERCEL === "1" ? request.headers.get("x-vercel-forwarded-for")?.trim() : undefined;
+  const ip = forwarded && isIP(forwarded) ? forwarded : "shared";
   return createHash("sha256").update(`${process.env.APP_SESSION_SECRET}:${ip}`).digest("hex");
 }
