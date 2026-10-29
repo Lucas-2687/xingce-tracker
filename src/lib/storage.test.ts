@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearAccountStorage, configureStorage, loadPendingData, loadRecords, notifySessionChange, saveCloudRevision, savePendingData, saveRecords, SESSION_CHANGE_KEY, sessionChangeMarker } from "./storage";
+import { clearAccountStorage, configureStorage, loadPendingData, loadRecords, loadSimulationSources, notifySessionChange, saveCloudRevision, savePendingData, saveRecords, saveSimulationSources, SESSION_CHANGE_KEY, sessionChangeMarker } from "./storage";
 import { createDemoRecords } from "../data/demo";
 
 let items: Map<string, string>;
@@ -28,6 +28,25 @@ describe("account-scoped private caches", () => {
     expect(items.has(SESSION_CHANGE_KEY)).toBe(true);
     configureStorage("another-owner");
     expect(loadRecords()).toEqual(records);
+  });
+
+  it("isolates sources, preserves empty lists and pending changes, and clears them on logout", () => {
+    saveSimulationSources(["广东", "自定义来源"]);
+    const pending = { revision: 3, records: [], practiceRecords: [], simulationSources: [] };
+    savePendingData(pending);
+    expect(loadPendingData()).toEqual(pending);
+    configureStorage("another-owner");
+    expect(loadSimulationSources()).toEqual(["广东", "国考", "粉笔"]);
+    saveSimulationSources(["四川"]);
+    configureStorage("owner");
+    expect(loadSimulationSources()).toEqual(["广东", "自定义来源"]);
+    saveSimulationSources([]);
+    expect(loadSimulationSources()).toEqual([]);
+    clearAccountStorage();
+    expect(loadPendingData()).toBeNull();
+    expect(loadSimulationSources()).toEqual(["广东", "国考", "粉笔"]);
+    configureStorage("another-owner");
+    expect(loadSimulationSources()).toEqual(["四川"]);
   });
 
   it("broadcasts a lock even when browser storage is unavailable", () => {

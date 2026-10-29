@@ -30,6 +30,12 @@ export interface ExamRecord {
   updatedAt: string;
 }
 
+export interface TrackerData {
+  records: ExamRecord[];
+  practiceRecords: PracticeRecord[];
+  simulationSources?: string[];
+}
+
 export interface PracticeAttempt {
   correct: number;
   wrong: number;

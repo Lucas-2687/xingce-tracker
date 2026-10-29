@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { MODULES, PRACTICE_MODULES, SIMULATION_SOURCES } from "../constants";
+import { MODULES, PRACTICE_MODULES } from "../constants";
+import {
+  createSimulationRecordName,
+  normalizeSimulationSources,
+  simulationMetadataForEditing,
+} from "../lib/simulation";
 import {
   activePracticeModuleKeys,
   calculatePracticeAccuracy,
@@ -30,18 +35,13 @@ export type RecordFormValue =
 
 interface RecordFormProps {
   initialValue: RecordFormValue;
+  simulationSources: string[];
+  onSourcesChange: (sources: string[]) => void;
   onClose: () => void;
   onSave: (value: RecordFormValue) => void;
 }
 
-type MetadataKey =
-  | "name"
-  | "date"
-  | "type"
-  | "year"
-  | "region"
-  | "paperNo"
-  | "durationMinutes";
+type MetadataKey = "date" | "type" | "paperNo" | "durationMinutes";
 
 function emptyExamFrom(record: ExamRecord | PracticeRecord): ExamRecord {
   const modules = Object.fromEntries(
@@ -54,7 +54,7 @@ function emptyExamFrom(record: ExamRecord | PracticeRecord): ExamRecord {
     id: "",
     name: record.name,
     date: record.date,
-    type: record.type ?? "模拟卷",
+    type: record.type ?? "",
     year: record.year,
     region: record.region,
     paperNo: record.paperNo,
@@ -85,47 +85,91 @@ function MetadataFields({
   record,
   onChange,
   errors,
+  simulationSources,
+  onSourcesChange,
+  historicalSource,
+  practiceTimestamp,
 }: {
   kind: RecordKind;
   record: ExamRecord | PracticeRecord;
   onChange: (key: MetadataKey, value: string | number | undefined) => void;
   errors: Record<string, string>;
+  simulationSources: string[];
+  onSourcesChange: (sources: string[]) => void;
+  historicalSource?: string;
+  practiceTimestamp: string;
 }) {
+  const [managingSources, setManagingSources] = useState(false);
+  const [newSource, setNewSource] = useState("");
+  const [sourceError, setSourceError] = useState("");
   const simulation = kind === "simulation";
-  const duration = simulation
-    ? (record as ExamRecord).durationMinutes
-    : undefined;
-  const sourceValue = (SIMULATION_SOURCES as readonly string[]).includes(
-    record.type ?? "",
-  )
-    ? record.type
+  const sourceValue = simulationSources.includes(record.type ?? "") || record.type === historicalSource
+    ? record.type ?? ""
     : "";
+  const addSource = () => {
+    try {
+      const sources = normalizeSimulationSources([...simulationSources, newSource]);
+      onSourcesChange(sources);
+      onChange("type", newSource.trim());
+      setNewSource("");
+      setSourceError("");
+    } catch (error) {
+      setSourceError(error instanceof Error ? error.message : "无法添加来源");
+    }
+  };
+  const removeSource = (source: string) => {
+    onSourcesChange(simulationSources.filter((item) => item !== source));
+    if (record.type === source) onChange("type", "");
+  };
+
   return (
     <div className="paper-fields">
-      <label className="field field--wide">
-        <span>
-          {simulation ? "试卷名称" : "练习名称"}
-          {simulation && <> <b>*</b></>}
-        </span>
-        <input
-          autoFocus
-          value={record.name}
-          onChange={(event) => onChange("name", event.target.value)}
-          placeholder={
-            simulation
-              ? "例如：2026 江苏省考 A 类"
-              : "选填，留空后按模块名和日期时间自动生成"
-          }
-          aria-invalid={Boolean(errors.name)}
-        />
-        {errors.name && <small className="field-error">{errors.name}</small>}
-      </label>
+      {simulation && (
+        <>
+          <div className="source-field">
+            <label className="field">
+              <span>来源 <b>*</b></span>
+              <select
+                autoFocus
+                value={sourceValue}
+                onChange={(event) => onChange("type", event.target.value)}
+                aria-invalid={Boolean(errors.type)}
+              >
+                <option value="">请选择来源</option>
+                {simulationSources.map((source) => (
+                  <option value={source} key={source}>{source}</option>
+                ))}
+                {historicalSource && !simulationSources.includes(historicalSource) && (
+                  <option value={historicalSource}>{historicalSource}（历史来源）</option>
+                )}
+              </select>
+              {errors.type && <small className="field-error">{errors.type}</small>}
+            </label>
+            <button
+              className="text-button"
+              type="button"
+              aria-expanded={managingSources}
+              aria-controls="simulation-source-manager"
+              onClick={() => setManagingSources((current) => !current)}
+            >
+              {managingSources ? "收起来源" : "管理来源"}
+            </button>
+          </div>
+          <label className="field field--wide">
+            <span>名称 / 套卷说明（选填）</span>
+            <input
+              value={record.paperNo ?? ""}
+              onChange={(event) => onChange("paperNo", event.target.value)}
+              placeholder="例如：2026 / 2026上半年33 / 上半年第33套"
+            />
+          </label>
+        </>
+      )}
 
       <label className="field">
-        <span>
-          练习日期 <b>*</b>
-        </span>
+        <span>练习日期 <b>*</b></span>
         <input
+          autoFocus={!simulation}
           type="date"
           value={record.date}
           onChange={(event) => onChange("date", event.target.value)}
@@ -135,74 +179,59 @@ function MetadataFields({
       </label>
 
       {simulation && (
-        <>
-          <label className="field">
-            <span>
-              来源 <b>*</b>
-            </span>
-            <select
-              value={sourceValue}
-              onChange={(event) => onChange("type", event.target.value)}
-              aria-invalid={Boolean(errors.type)}
-            >
-              <option value="">请选择来源</option>
-              {SIMULATION_SOURCES.map((source) => (
-                <option value={source} key={source}>
-                  {source}
-                </option>
-              ))}
-            </select>
-            {errors.type && <small className="field-error">{errors.type}</small>}
-          </label>
+        <label className="field">
+          <span>整卷总耗时（分钟）</span>
+          <input
+            type="number"
+            min="1"
+            value={(record as ExamRecord).durationMinutes ?? ""}
+            onChange={(event) => onChange("durationMinutes", event.target.value ? Number(event.target.value) : undefined)}
+            placeholder="选填"
+            aria-invalid={Boolean(errors.durationMinutes)}
+          />
+          {errors.durationMinutes && <small className="field-error">{errors.durationMinutes}</small>}
+        </label>
+      )}
 
-          <label className="field">
-            <span>年份</span>
-            <input
-              inputMode="numeric"
-              value={record.year ?? ""}
-              onChange={(event) => onChange("year", event.target.value)}
-              placeholder="2026"
-            />
-          </label>
+      <div className={`field record-name-preview${simulation ? "" : " field--wide"}`}>
+        <span>{simulation ? "试卷名称（自动生成）" : "练习名称（自动生成）"}</span>
+        <output aria-live="polite">
+          {simulation
+            ? sourceValue ? createSimulationRecordName(sourceValue, record.paperNo) : "请选择来源"
+            : createPracticeRecordName(record, practiceTimestamp)}
+        </output>
+      </div>
 
-          <label className="field">
-            <span>地区</span>
-            <input
-              value={record.region ?? ""}
-              onChange={(event) => onChange("region", event.target.value)}
-              placeholder="例如：江苏"
-            />
-          </label>
-
-          <label className="field">
-            <span>套卷编号</span>
-            <input
-              value={record.paperNo ?? ""}
-              onChange={(event) => onChange("paperNo", event.target.value)}
-              placeholder="例如：A 类 / 第 3 套"
-            />
-          </label>
-
-          <label className="field">
-            <span>整卷总耗时（分钟）</span>
-            <input
-              type="number"
-              min="1"
-              value={duration ?? ""}
-              onChange={(event) =>
-                onChange(
-                  "durationMinutes",
-                  event.target.value ? Number(event.target.value) : undefined,
-                )
-              }
-              placeholder="选填"
-              aria-invalid={Boolean(errors.durationMinutes)}
-            />
-            {errors.durationMinutes && (
-              <small className="field-error">{errors.durationMinutes}</small>
-            )}
-          </label>
-        </>
+      {simulation && managingSources && (
+        <section className="source-manager" id="simulation-source-manager" aria-label="来源管理">
+          <p>来源修改会自动保存。删除来源不会修改历史记录。</p>
+          <div className="source-manager__add">
+            <label className="field">
+              <span>新增来源</span>
+              <input
+                value={newSource}
+                onChange={(event) => { setNewSource(event.target.value); setSourceError(""); }}
+                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSource(); } }}
+                placeholder="输入地区、机构或其他来源"
+                aria-invalid={Boolean(sourceError)}
+              />
+            </label>
+            <button className="button button--secondary" type="button" onClick={addSource}>添加来源</button>
+          </div>
+          {sourceError && <p className="field-error" role="alert">{sourceError}</p>}
+          <ul className="source-manager__list">
+            {simulationSources.map((source) => (
+              <li key={source}>
+                <span>{source}</span>
+                <button type="button" aria-label={`删除来源${source}`} onClick={() => removeSource(source)}>删除</button>
+              </li>
+            ))}
+          </ul>
+          {!simulationSources.length && <p>还没有来源，请先添加一个来源。</p>}
+        </section>
+      )}
+      {simulation && !simulationSources.length && !managingSources && (
+        <p className="source-empty">还没有来源，请点击“管理来源”添加。</p>
       )}
     </div>
   );
@@ -349,19 +378,24 @@ function PracticeModuleEditor({
   );
 }
 
-export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
+export function RecordForm({ initialValue, simulationSources, onSourcesChange, onClose, onSave }: RecordFormProps) {
   const [kind, setKind] = useState<RecordKind>(initialValue.kind);
-  const [exam, setExam] = useState<ExamRecord>(() =>
-    initialValue.kind === "simulation"
+  const [exam, setExam] = useState<ExamRecord>(() => {
+    const initial = simulationMetadataForEditing(initialValue.kind === "simulation"
       ? initialValue.record
-      : emptyExamFrom(initialValue.record),
-  );
+      : emptyExamFrom(initialValue.record));
+    return initial.id || simulationSources.includes(initial.type) ? initial : { ...initial, type: "" };
+  });
   const [practice, setPractice] = useState<PracticeRecord>(() =>
     initialValue.kind === "practice"
       ? initialValue.record
       : emptyPracticeFrom(initialValue.record),
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [draftTimestamp] = useState(() => new Date().toISOString());
+  const historicalSource = initialValue.kind === "simulation" && initialValue.record.id
+    ? simulationMetadataForEditing(initialValue.record).type
+    : undefined;
   const lockedKind = Boolean(initialValue.record.id);
   const total = useMemo(() => calculateRecordTotal(exam), [exam]);
   const selectedPracticeCount = activePracticeModuleKeys(practice).length;
@@ -371,26 +405,10 @@ export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
     source: ExamRecord | PracticeRecord,
     targetKind: RecordKind,
   ) => {
-    const sourceType = source.type;
     if (targetKind === "practice") {
-      setPractice((current) => ({
-        ...current,
-        name: source.name,
-        date: source.date,
-      }));
+      setPractice((current) => ({ ...current, date: source.date }));
     } else {
-      setExam((current) => ({
-        ...current,
-        name: source.name,
-        date: source.date,
-        type: sourceType &&
-          (SIMULATION_SOURCES as readonly string[]).includes(sourceType)
-          ? sourceType
-          : "模拟卷",
-        year: source.year,
-        region: source.region,
-        paperNo: source.paperNo,
-      }));
+      setExam((current) => ({ ...current, date: source.date }));
     }
   };
 
@@ -431,9 +449,8 @@ export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
 
   const validateExam = () => {
     const next: Record<string, string> = {};
-    if (!exam.name.trim()) next.name = "请填写试卷名称";
     if (!exam.date) next.date = "请选择练习日期";
-    if (!(SIMULATION_SOURCES as readonly string[]).includes(exam.type)) {
+    if (!exam.type.trim() || (!simulationSources.includes(exam.type) && exam.type !== historicalSource)) {
       next.type = "请选择来源";
     }
     if (
@@ -477,7 +494,7 @@ export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
         kind,
         record: {
           ...exam,
-          name: exam.name.trim(),
+          name: createSimulationRecordName(exam.type, exam.paperNo),
           type: exam.type.trim(),
           modules: Object.fromEntries(
             MODULES.map((module) => {
@@ -492,8 +509,8 @@ export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
               ];
             }),
           ) as Record<ModuleKey, ModuleAttempt>,
-          year: optionalText(exam.year),
-          region: optionalText(exam.region),
+          year: undefined,
+          region: undefined,
           paperNo: optionalText(exam.paperNo),
           updatedAt: now,
           createdAt: exam.createdAt || now,
@@ -513,15 +530,14 @@ export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
     const next: PracticeRecord = {
       ...practice,
       modules,
-      name: practice.name.trim(),
+      name: createPracticeRecordName(practice, practice.createdAt || draftTimestamp),
       type: optionalText(practice.type),
       year: optionalText(practice.year),
       region: optionalText(practice.region),
       paperNo: optionalText(practice.paperNo),
       updatedAt: now,
-      createdAt: practice.createdAt || now,
+      createdAt: practice.createdAt || draftTimestamp,
     };
-    if (!next.name) next.name = createPracticeRecordName(next, now);
     onSave({ kind, record: next });
   };
 
@@ -587,6 +603,10 @@ export function RecordForm({ initialValue, onClose, onSave }: RecordFormProps) {
             record={activeRecord}
             onChange={updateMetadata}
             errors={errors}
+            simulationSources={simulationSources}
+            onSourcesChange={onSourcesChange}
+            historicalSource={historicalSource}
+            practiceTimestamp={practice.createdAt || draftTimestamp}
           />
 
           <div className="form-section-heading">

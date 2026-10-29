@@ -52,15 +52,22 @@ try {
   assert.equal((await call('/api/data', { method: 'PUT', headers: { ...headers, origin: 'https://wrong.example' }, body: '{}' })).status, 403, 'cross-origin write');
   const initial = await (await call('/api/data', { headers })).json();
   assert.equal(initial.revision, 0);
+  assert.deepEqual(initial.simulationSources, ['广东', '国考', '粉笔'], 'default sources');
   const record = { id: 'smoke-record', name: '迁移验证练习', date: '2026-10-23', modules: { verbal: { correct: 17, wrong: 3 } }, createdAt: '2026-10-23T00:00:00.000Z', updatedAt: '2026-10-23T00:00:00.000Z' };
-  const data = { revision: 0, records: [], practiceRecords: [record] };
+  const data = { revision: 0, records: [], practiceRecords: [record], simulationSources: ['广东', '粉笔', '自定义来源'] };
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify(data) })).status, 200, 'data save');
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify(data) })).status, 409, 'stale data conflict');
   const saved = await (await call('/api/data', { headers })).json();
   assert.equal(saved.revision, 1);
   assert.equal(saved.practiceRecords[0].id, record.id);
   assert.equal(saved.practiceRecords[0].createdAt, record.createdAt);
-  assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ revision: 1, records: [], practiceRecords: [{ ...record, modules: { verbal: { correct: -1, wrong: 0 } } }] }) })).status, 400, 'invalid record');
+  assert.deepEqual(saved.simulationSources, data.simulationSources, 'source persistence');
+  assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ revision: 1, records: [], practiceRecords: [record] }) })).status, 200, 'legacy client save');
+  assert.deepEqual((await (await call('/api/data', { headers })).json()).simulationSources, data.simulationSources, 'legacy request preserves sources');
+  assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ ...data, revision: 2, simulationSources: [] }) })).status, 200, 'delete all sources');
+  assert.deepEqual((await (await call('/api/data', { headers })).json()).simulationSources, [], 'empty source list stays empty');
+  assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ ...data, revision: 3, simulationSources: ['广东', ' 广东 '] }) })).status, 400, 'invalid sources');
+  assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ revision: 3, records: [], practiceRecords: [{ ...record, modules: { verbal: { correct: -1, wrong: 0 } } }] }) })).status, 400, 'invalid record');
   const logout = await call('/api/auth/logout', { method: 'POST', headers });
   assert.equal(logout.status, 200, 'logout');
   assert(logout.headers.get('set-cookie')?.includes('Max-Age=0'), 'logout cookie removal');
@@ -70,7 +77,7 @@ try {
     }
     assert.equal((await call('/api/auth/login', { method: 'POST', headers: { origin, 'content-type': 'application/json', 'x-forwarded-for': '192.0.2.100' }, body: JSON.stringify({ password }) })).status, 429, 'forwarded IP cannot bypass login limit');
   }
-  console.log('PASS: HTTP login, auth rejection, cookie flags, private cache policy, database read/write, field preservation, revision conflict, invalid input, logout and login limits.');
+  console.log('PASS: HTTP login, auth rejection, cookie flags, private cache policy, database read/write, field preservation, source persistence and legacy compatibility, revision conflict, invalid input, logout and login limits.');
   if (process.argv.includes('--serve')) {
     console.log('Local QA server: ' + origin);
     await new Promise(resolve => process.once('SIGINT', resolve));

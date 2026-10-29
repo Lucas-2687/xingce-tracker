@@ -69,6 +69,21 @@ describe("data transfer", () => {
     expect(restored.includesPracticeRecords).toBe(true);
   });
 
+  it("round-trips source settings without renaming legacy records or losing empty lists", () => {
+    const exams = createDemoRecords().slice(0, 1);
+    for (const sources of [["广东", "自定义来源"], []]) {
+      const restored = parseBackupJson(exportAllRecordsToJson(exams, [practiceRecord], sources));
+      expect(restored.simulationSources).toEqual(sources);
+      expect(restored.records).toEqual(exams);
+      expect(restored.practiceRecords).toEqual([practiceRecord]);
+    }
+    const legacy = parseBackupJson(JSON.stringify({ records: exams, practiceRecords: [practiceRecord] }));
+    expect(legacy).not.toHaveProperty("simulationSources");
+    for (const sources of [null, [1], ["广东", "广东"]]) {
+      expect(() => parseBackupJson(JSON.stringify({ records: [], simulationSources: sources }))).toThrow();
+    }
+  });
+
   it("keeps old JSON backups compatible", () => {
     const restored = parseBackupJson(
       exportRecordsToJson(createDemoRecords().slice(0, 1)),

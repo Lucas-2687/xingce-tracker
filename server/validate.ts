@@ -1,4 +1,5 @@
 import { normalizePracticeRecord, normalizeRecord } from "../src/lib/dataTransfer";
+import { normalizeSimulationSources } from "../src/lib/simulation";
 import type { StoredData } from "./store";
 
 function checkRecords(value: unknown) {
@@ -14,5 +15,12 @@ export function validateData(body: unknown): StoredData & { revision: number } {
   if (!body || typeof body !== "object") throw new Error("invalid_data");
   const value = body as Record<string, unknown>;
   if (!Number.isSafeInteger(value.revision) || Number(value.revision) < 0 || Number(value.revision) >= Number.MAX_SAFE_INTEGER) throw new Error("invalid_data");
-  return { revision: Number(value.revision), records: checkRecords(value.records).map(normalizeRecord), practiceRecords: checkRecords(value.practiceRecords).map(normalizePracticeRecord) };
+  return {
+    revision: Number(value.revision),
+    records: checkRecords(value.records).map(normalizeRecord),
+    practiceRecords: checkRecords(value.practiceRecords).map(normalizePracticeRecord),
+    ...(value.simulationSources === undefined ? {} : {
+      simulationSources: normalizeSimulationSources(value.simulationSources),
+    }),
+  };
 }

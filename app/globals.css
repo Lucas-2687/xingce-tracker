@@ -502,7 +502,6 @@ h3 {
 
 .latest-score-card,
 .total-trend-card,
-.score-rail-card,
 .module-detail,
 .history-table-wrap {
   border: 1px solid var(--line);
@@ -663,15 +662,6 @@ h3 {
   font-size: 13px;
 }
 
-.score-rail-card {
-  padding: 26px 30px 24px;
-  background: var(--surface);
-}
-
-.section-heading--tight h2 {
-  font-size: 20px;
-}
-
 .section-heading h2 {
   margin-bottom: 0;
   font-size: 28px;
@@ -684,68 +674,6 @@ h3 {
   font-size: 12px;
   line-height: 1.6;
   text-align: right;
-}
-
-.score-rail {
-  display: flex;
-  gap: 4px;
-  height: 22px;
-  margin-top: 22px;
-  padding: 3px;
-  background: #e9f0ee;
-  border-radius: 7px;
-  overflow: hidden;
-}
-
-.score-rail__segment {
-  position: relative;
-  min-width: 18px;
-  height: 16px;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.score-rail__segment > span {
-  position: absolute;
-  inset: 0 auto 0 0;
-  display: block;
-  border-radius: 3px;
-}
-
-.score-rail-legend {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 18px;
-  margin-top: 16px;
-}
-
-.rail-legend-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  align-items: baseline;
-  gap: 5px;
-  min-width: 0;
-  color: var(--body);
-  font-size: 12px;
-}
-
-.rail-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 2px;
-}
-
-.rail-legend-item strong {
-  color: var(--ink);
-  font-family: Bahnschrift, sans-serif;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.rail-legend-item small {
-  color: var(--muted);
-  font-size: 10px;
 }
 
 .section-block {
@@ -1322,62 +1250,77 @@ h3 {
   border-radius: 1px;
 }
 
-.practice-module-list,
-.practice-result-list {
+.practice-history-wrap {
+  overflow-x: auto;
+}
+
+.history-table.practice-history-table {
+  min-width: 680px;
+  table-layout: fixed;
+}
+
+.practice-history-table th:first-child {
+  width: 30%;
+}
+
+.practice-history-table th:last-child {
+  width: 156px;
+}
+
+.practice-history-table td:first-child {
+  display: table-cell;
+  min-width: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.practice-history-date {
   display: grid;
-  gap: 7px;
+  gap: 5px;
+  overflow-wrap: anywhere;
 }
 
 .practice-module-list {
-  min-width: 110px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
 }
 
-.practice-result-list {
-  min-width: 150px;
+.practice-module-list--single {
+  grid-template-columns: minmax(0, 1fr);
+  width: calc((100% - 24px) / 2);
 }
 
-.practice-module-list > span,
-.practice-result-list > span {
-  min-height: 16px;
+.practice-module-item,
+.practice-module-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.practice-module-item {
+  justify-content: space-between;
   color: var(--body);
   font-family: Bahnschrift, "Microsoft YaHei UI", sans-serif;
   font-size: 11px;
 }
 
-.practice-module-list > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.practice-result-list > span {
-  display: grid;
-  grid-template-columns: 48px 1fr;
-  align-items: center;
-  gap: 7px;
-}
-
-.practice-module-list i {
-  width: 6px;
+.practice-module-name i {
+  flex: 0 0 6px;
   height: 6px;
   border-radius: 2px;
 }
 
-.practice-module-list b {
+.practice-module-name b {
   color: var(--ink);
   font-weight: 650;
 }
 
-.practice-result-list small {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.practice-count {
-  color: var(--ink);
-  font-family: Bahnschrift, sans-serif;
-  font-size: 20px;
+.practice-module-item > strong {
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .row-actions {
@@ -1525,12 +1468,100 @@ h3 {
 
 .paper-fields {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
   padding: 24px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
+}
+
+.source-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.source-field .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-field > button {
+  margin-bottom: 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.record-name-preview output {
+  min-height: 41px;
+  padding: 11px 12px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-input);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.source-manager,
+.source-empty {
+  grid-column: 1 / -1;
+}
+
+.source-manager {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.source-manager > p:not(.field-error),
+.source-empty {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.source-manager__add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.source-manager__add .field {
+  flex: 1 1 180px;
+}
+
+.source-manager__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-manager__list li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.source-manager__list button {
+  flex-shrink: 0;
+  padding: 2px;
+  color: var(--danger);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 11px;
 }
 
 .field {
@@ -1827,7 +1858,6 @@ h3 {
   .prediction-result { min-height: 260px; }
   .latest-score-card { min-height: 300px; }
   .module-card-grid { grid-template-columns: repeat(2, 1fr); }
-  .score-rail-legend { grid-template-columns: repeat(3, 1fr); }
   .history-table-wrap { overflow-x: auto; }
   .history-table { min-width: 1050px; }
 }
@@ -1852,7 +1882,6 @@ h3 {
   .section-note { text-align: left; }
   .diagnostic-grid, .module-card-grid, .quick-modules { grid-template-columns: 1fr; }
   .prediction-module-grid { grid-template-columns: 1fr; }
-  .score-rail-legend { grid-template-columns: repeat(2, 1fr); }
   .module-detail { grid-template-columns: 1fr; }
   .module-detail__copy { border-right: 0; border-bottom: 1px solid var(--line); }
   .modal-backdrop { padding: 10px; }
