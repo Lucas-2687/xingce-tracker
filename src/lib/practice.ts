@@ -278,25 +278,13 @@ export function buildPracticeDiagnostics(
   return [weakest, declining, unstable];
 }
 
-function localTimeLabel(timestamp: string): string {
-  const date = new Date(timestamp);
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}-${minutes}`;
-}
-
 export function createPracticeRecordName(
-  record: Pick<PracticeRecord, "date" | "modules">,
+  record: Pick<PracticeRecord, "date">,
   timestamp: string,
 ): string {
-  const names = activePracticeModuleKeys({
-    ...record,
-    id: "",
-    name: "",
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  }).map(
-    (key) => PRACTICE_MODULES.find((module) => module.key === key)?.name ?? key,
-  );
-  return `${names.join("+")}_${record.date}_${localTimeLabel(timestamp)}`;
+  const date = new Date(timestamp);
+  const time = Number.isNaN(date.getTime())
+    ? "00:00"
+    : `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${record.date} ${time}`;
 }

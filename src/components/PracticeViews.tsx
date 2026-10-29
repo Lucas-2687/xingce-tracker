@@ -5,6 +5,7 @@ import {
   buildPracticeDiagnostics,
   calculatePracticeAccuracy,
   calculatePracticeScorePrediction,
+  createPracticeRecordName,
   getPracticeAttempts,
   getPracticeTrend,
   practiceQuestionCount,
@@ -304,7 +305,7 @@ export function PracticeDashboard({
                   valueSuffix="%"
                   data={trend.map(({ record, value }) => ({
                     label: shortDate(record.date),
-                    title: record.name,
+                    title: createPracticeRecordName(record, record.createdAt),
                     value,
                   }))}
                 />
@@ -376,7 +377,7 @@ export function PracticeDashboard({
             valueSuffix="%"
             data={selectedTrend.map(({ record, attempt, value }) => ({
               label: shortDate(record.date),
-              title: record.name,
+              title: createPracticeRecordName(record, record.createdAt),
               value,
               questionCount: practiceQuestionCount(attempt),
               accuracy: value,
@@ -427,15 +428,13 @@ export function PracticeHistoryView({
         </div>
       </section>
 
-      <div className="history-table-wrap">
+      <div className="history-table-wrap practice-history-wrap">
         <table className="history-table practice-history-table">
           <thead>
             <tr>
-              <th>日期 / 练习</th>
-              <th>模块</th>
-              <th>正确率</th>
-              <th>模块数</th>
-              <th>
+              <th scope="col">日期 / 练习</th>
+              <th scope="col">模块与正确率</th>
+              <th scope="col">
                 <span className="sr-only">操作</span>
               </th>
             </tr>
@@ -446,44 +445,27 @@ export function PracticeHistoryView({
               return (
                 <tr key={record.id}>
                   <td>
-                    <time>{record.date}</time>
-                    <strong>{record.name}</strong>
-                    {(record.region || record.paperNo) && (
-                      <small>
-                        {[record.region, record.paperNo].filter(Boolean).join(" · ")}
-                      </small>
-                    )}
+                    <div className="practice-history-date">
+                      <time dateTime={record.date}>{record.date}</time>
+                      <strong>{createPracticeRecordName(record, record.createdAt)}</strong>
+                    </div>
                   </td>
                   <td>
-                    <div className="practice-module-list">
+                    <div className={`practice-module-list${keys.length === 1 ? " practice-module-list--single" : ""}`}>
                       {keys.map((key) => {
                         const module = MODULE_MAP[key];
-                        return (
-                          <span key={key}>
-                            <i style={{ backgroundColor: module.color }} />
-                            <b>{module.name}</b>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="practice-result-list">
-                      {keys.map((key) => {
                         const attempt = record.modules[key]!;
                         return (
-                          <span key={key}>
-                            {calculatePracticeAccuracy(attempt).toFixed(1)}%
-                            <small>
-                              {attempt.correct} 对 / {attempt.wrong} 错
-                            </small>
-                          </span>
+                          <div className="practice-module-item" key={key}>
+                            <span className="practice-module-name">
+                              <i style={{ backgroundColor: module.color }} />
+                              <b>{module.name}</b>
+                            </span>
+                            <strong>{calculatePracticeAccuracy(attempt).toFixed(1)}%</strong>
+                          </div>
                         );
                       })}
                     </div>
-                  </td>
-                  <td>
-                    <b className="practice-count">{keys.length}</b>
                   </td>
                   <td>
                     <div className="row-actions">

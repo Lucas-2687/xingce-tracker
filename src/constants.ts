@@ -71,7 +71,7 @@ export const MODULE_MAP = Object.fromEntries(
   PRACTICE_MODULES.map((module) => [module.key, module]),
 ) as Record<PracticeModuleKey, ModuleDefinition>;
 
-export const SIMULATION_SOURCES = ["国考", "省考", "模拟卷"] as const;
+export const SIMULATION_SOURCES = ["广东", "国考", "粉笔"] as const;
 
 export const PRACTICE_SOURCES = ["题本", "粉笔"] as const;
 

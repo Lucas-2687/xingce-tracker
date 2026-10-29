@@ -12,6 +12,7 @@ import {
   validatePracticeAttempt,
 } from "./practice";
 import { validateModuleAttempt } from "./scoring";
+import { normalizeSimulationSources } from "./simulation";
 
 const BASE_COLUMNS = [
   "id",
@@ -238,6 +239,7 @@ export function exportRecordsToJson(records: ExamRecord[]): string {
 export function exportAllRecordsToJson(
   records: ExamRecord[],
   practiceRecords: PracticeRecord[],
+  simulationSources?: string[],
 ): string {
   return JSON.stringify(
     {
@@ -245,6 +247,7 @@ export function exportAllRecordsToJson(
       exportedAt: new Date().toISOString(),
       records,
       practiceRecords,
+      simulationSources: normalizeSimulationSources(simulationSources),
     },
     null,
     2,
@@ -408,6 +411,7 @@ export function parseJson(content: string): ExamRecord[] {
 export interface ImportedData {
   records: ExamRecord[];
   practiceRecords: PracticeRecord[];
+  simulationSources?: string[];
   includesRecords: boolean;
   includesPracticeRecords: boolean;
 }
@@ -440,6 +444,9 @@ export function parseBackupJson(content: string): ImportedData {
       : [],
     includesRecords,
     includesPracticeRecords,
+    ...(value.simulationSources === undefined ? {} : {
+      simulationSources: normalizeSimulationSources(value.simulationSources),
+    }),
   };
 }
 

@@ -1,9 +1,11 @@
 import { PRACTICE_STORAGE_KEY, STORAGE_KEY } from "../constants";
-import type { ExamRecord, PracticeRecord } from "../types";
+import type { ExamRecord, PracticeRecord, TrackerData } from "../types";
 import { normalizePracticeRecord, normalizeRecord } from "./dataTransfer";
+import { normalizeSimulationSources } from "./simulation";
 
 const PENDING_SYNC_KEY = "xingce-score-dashboard.pending-sync.v1";
 const CLOUD_REVISION_KEY = "xingce-score-dashboard.cloud-revision.v1";
+const SIMULATION_SOURCES_KEY = "xingce-score-dashboard.simulation-sources.v1";
 export const SESSION_CHANGE_KEY = "xingce-independent.session-change.v1";
 export const SESSION_CHANNEL_NAME = "xingce-independent.session";
 export function sessionChangeMarker(): string | null {
@@ -24,16 +26,12 @@ let accountId = "owner";
 const accountKey = (key: string) => `xingce-independent.${encodeURIComponent(accountId)}.${key}`;
 export function configureStorage(userId: string): void { accountId = userId; }
 export function clearAccountStorage(): void {
-  for (const key of [PENDING_SYNC_KEY, CLOUD_REVISION_KEY, STORAGE_KEY, PRACTICE_STORAGE_KEY]) {
+  for (const key of [PENDING_SYNC_KEY, CLOUD_REVISION_KEY, STORAGE_KEY, PRACTICE_STORAGE_KEY, SIMULATION_SOURCES_KEY]) {
     window.localStorage.removeItem(accountKey(key));
   }
 }
 
-export type PendingSyncData = {
-  revision: number;
-  records: ExamRecord[];
-  practiceRecords: PracticeRecord[];
-};
+export type PendingSyncData = TrackerData & { revision: number };
 
 export function loadCloudRevision(): number {
   const value = Number(window.localStorage.getItem(accountKey(CLOUD_REVISION_KEY)));
@@ -55,6 +53,9 @@ export function loadPendingData(): PendingSyncData | null {
       revision: value.revision,
       records: value.records.map(normalizeRecord),
       practiceRecords: value.practiceRecords.map(normalizePracticeRecord),
+      ...(value.simulationSources === undefined ? {} : {
+        simulationSources: normalizeSimulationSources(value.simulationSources),
+      }),
     };
   } catch {
     return null;
@@ -101,4 +102,19 @@ export function loadPracticeRecords(): PracticeRecord[] {
 export function savePracticeRecords(records: PracticeRecord[]): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(accountKey(PRACTICE_STORAGE_KEY), JSON.stringify(records));
+}
+
+export function loadSimulationSources(): string[] {
+  if (typeof window === "undefined") return normalizeSimulationSources(undefined);
+  try {
+    const raw = window.localStorage.getItem(accountKey(SIMULATION_SOURCES_KEY));
+    return normalizeSimulationSources(raw === null ? undefined : JSON.parse(raw));
+  } catch {
+    return normalizeSimulationSources(undefined);
+  }
+}
+
+export function saveSimulationSources(sources: string[]): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(accountKey(SIMULATION_SOURCES_KEY), JSON.stringify(sources));
 }

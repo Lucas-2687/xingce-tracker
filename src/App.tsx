@@ -12,8 +12,9 @@ import {
   PracticeDashboard,
   PracticeHistoryView,
 } from "./components/PracticeViews";
-import { ScoreRail } from "./components/ScoreRail";
 import { createDemoRecords } from "./data/demo";
+import { createPracticeRecordName } from "./lib/practice";
+import { normalizeSimulationSources, withSimulationSources } from "./lib/simulation";
 import { MODULES, MODULE_MAP, WINDOW_OPTIONS } from "./constants";
 import {
   buildDiagnostics,
@@ -45,6 +46,8 @@ import {
   loadPendingData,
   loadPracticeRecords,
   loadRecords,
+  loadSimulationSources,
+  saveSimulationSources,
   saveCloudRevision,
   savePendingData,
   savePracticeRecords,
@@ -90,7 +93,7 @@ function createBlankRecord(): ExamRecord {
     id: "",
     name: "",
     date: localDate(),
-    type: "模拟卷",
+    type: "",
     modules,
     createdAt: "",
     updatedAt: "",
@@ -323,8 +326,6 @@ function Dashboard({
         </article>
       </section>
 
-      <ScoreRail record={latest} />
-
       <section className="section-block" aria-labelledby="diagnostics-title">
         <div className="section-heading">
           <div>
@@ -540,6 +541,11 @@ function ImportDialog({
         <p className="dialog-note">
           合并会用导入版本更新同 ID 记录；替换只清除文件中所包含的记录类别，另一类数据保持不变。
         </p>
+        {imported.simulationSources !== undefined && (
+          <p className="dialog-note">
+            文件包含 {imported.simulationSources.length} 个来源；合并会保留现有来源，替换会使用文件中的来源列表。
+          </p>
+        )}
         <div className="dialog-actions">
           <button className="button button--secondary" type="button" onClick={onCancel}>取消</button>
           <button className="button button--secondary" type="button" onClick={() => onImport("merge")}>合并导入</button>
@@ -576,7 +582,7 @@ function DeleteDialog({
   );
 }
 
-type CloudData = { revision: number; records: ExamRecord[]; practiceRecords: PracticeRecord[] };
+type CloudData = PendingSyncData;
 type PendingData = PendingSyncData;
 
 type AppProps = { userName: string; userId: string; sessionExpiresAt: number };
@@ -592,6 +598,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
   const [guard] = useState(() => new SessionGuard(() => { notifySessionChange(); onLock(); }, sessionExpiresAt));
   const [records, setRecords] = useState<ExamRecord[]>([]);
   const [practiceRecords, setPracticeRecords] = useState<PracticeRecord[]>([]);
+  const [simulationSources, setSimulationSources] = useState<string[]>(() => normalizeSimulationSources(undefined));
   const [dataReady, setDataReady] = useState(false);
   const [syncState, setSyncState] = useState<"loading" | "synced" | "saving" | "pending" | "conflict" | "error">("loading");
   const [tab, setTab] = useState<Tab>("simulation");
@@ -612,7 +619,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
   const syncingRef = useRef(false);
   const pendingRef = useRef<PendingData | null>(null);
   const conflictRevisionRef = useRef<number | null>(null);
-  const latestDataRef = useRef<CloudData>({ revision: 0, records: [], practiceRecords: [] });
+  const latestDataRef = useRef<CloudData>(withSimulationSources({ revision: 0, records: [], practiceRecords: [] }));
 
   useEffect(() => {
     guard.start();
@@ -663,9 +670,9 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
           const cloudResponse = await guard.request<CloudData>("/api/data", { cache: "no-store" });
           if (!guard.active) return;
           if (!cloudResponse.ok || !cloudResponse.data) throw new Error("无法核对云端记录");
-          const cloud = cloudResponse.data;
-          if (JSON.stringify([cloud.records, cloud.practiceRecords]) !==
-              JSON.stringify([pending.records, pending.practiceRecords])) {
+          const cloud = withSimulationSources(cloudResponse.data);
+          if (JSON.stringify([cloud.records, cloud.practiceRecords, cloud.simulationSources]) !==
+              JSON.stringify([pending.records, pending.practiceRecords, pending.simulationSources])) {
             conflictRevisionRef.current = cloud.revision;
             setSyncState("conflict");
             setToast("云端有其他修改，本机记录已保留；请先导出备份再处理冲突。");
@@ -707,7 +714,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
     void guard.request<CloudData>("/api/data", { cache: "no-store" })
       .then((response) => {
         if (!response.ok || !response.data) throw new Error("无法读取云端记录");
-        return response.data;
+        return withSimulationSources(response.data);
       })
       .then((cloud) => {
         if (cancelled || !guard.active) return;
@@ -715,12 +722,14 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
         const pending = loadPendingData();
         const localRecords = loadRecords();
         const localPractice = loadPracticeRecords();
+        const localSources = loadSimulationSources();
         const shouldMigrate = pending === null && cloud.revision === 0 &&
-          (localRecords.length > 0 || localPractice.length > 0);
+          (localRecords.length > 0 || localPractice.length > 0 ||
+            JSON.stringify(localSources) !== JSON.stringify(cloud.simulationSources));
         const hasPending = pending !== null || shouldMigrate;
-        const next = pending ?? (shouldMigrate
-          ? { revision: cloud.revision, records: localRecords, practiceRecords: localPractice }
-          : cloud);
+        const next = withSimulationSources(pending ?? (shouldMigrate
+          ? { revision: cloud.revision, records: localRecords, practiceRecords: localPractice, simulationSources: localSources }
+          : cloud), cloud.simulationSources);
         revisionRef.current = next.revision;
         pendingRef.current = hasPending ? next : null;
         if (hasPending) savePendingData(next);
@@ -728,8 +737,10 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
         latestDataRef.current = next;
         setRecords(next.records);
         setPracticeRecords(next.practiceRecords);
+        setSimulationSources(next.simulationSources);
         saveRecords(next.records);
         savePracticeRecords(next.practiceRecords);
+        saveSimulationSources(next.simulationSources);
         setDataReady(true);
         setSyncState(hasPending ? "pending" : "synced");
         if (hasPending) void syncPending();
@@ -737,17 +748,18 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
       .catch(() => {
         if (cancelled || !guard.active) return;
         const pending = loadPendingData();
-        const local = pending ?? {
+        const local = withSimulationSources(pending ?? {
           revision: loadCloudRevision(),
           records: loadRecords(),
           practiceRecords: loadPracticeRecords(),
-        };
+        }, loadSimulationSources());
         revisionRef.current = local.revision;
-        pendingRef.current = pending;
+        pendingRef.current = pending ? local : null;
         latestDataRef.current = local;
         skipSyncRef.current = true;
         setRecords(local.records);
         setPracticeRecords(local.practiceRecords);
+        setSimulationSources(local.simulationSources);
         setDataReady(true);
         setSyncState(pending ? "pending" : "error");
         setToast("正在使用本机记录；网络恢复后可继续同步。");
@@ -761,11 +773,12 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
       skipSyncRef.current = false;
       return;
     }
-    const next = { revision: revisionRef.current, records, practiceRecords };
+    const next = { revision: revisionRef.current, records, practiceRecords, simulationSources };
     try {
       savePendingData(next);
       saveRecords(records);
       savePracticeRecords(practiceRecords);
+      saveSimulationSources(simulationSources);
     } catch {
       setSyncState("error");
       setToast("本机保存失败，请导出备份后检查浏览器存储空间。");
@@ -778,7 +791,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
       void syncPending();
     }, 350);
     return () => window.clearTimeout(timeout);
-  }, [records, practiceRecords, dataReady, guard, syncPending]);
+  }, [records, practiceRecords, simulationSources, dataReady, guard, syncPending]);
 
   useEffect(() => {
     const refresh = () => {
@@ -789,21 +802,23 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
       }
       void guard.request<CloudData>("/api/data", { cache: "no-store" }).then((response) => {
         if (!guard.active || !response.ok || !response.data) return;
-        const cloud = response.data;
+        const cloud = withSimulationSources(response.data);
         if (cloud.revision <= revisionRef.current) {
           setSyncState("synced");
           return;
         }
         const current = latestDataRef.current;
-        if (current.records === records && current.practiceRecords === practiceRecords) {
+        if (current.records === records && current.practiceRecords === practiceRecords && current.simulationSources === simulationSources) {
           revisionRef.current = cloud.revision;
           saveCloudRevision(cloud.revision);
           skipSyncRef.current = true;
           latestDataRef.current = cloud;
           setRecords(cloud.records);
           setPracticeRecords(cloud.practiceRecords);
+          setSimulationSources(cloud.simulationSources);
           saveRecords(cloud.records);
           savePracticeRecords(cloud.practiceRecords);
+          saveSimulationSources(cloud.simulationSources);
           setSyncState("synced");
         }
       }).catch(() => undefined);
@@ -812,7 +827,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
     window.addEventListener("online", refresh);
     const interval = window.setInterval(refresh, 30_000);
     return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); window.clearInterval(interval); };
-  }, [dataReady, records, practiceRecords, guard, syncPending, syncState]);
+  }, [dataReady, records, practiceRecords, simulationSources, guard, syncPending, syncState]);
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(""), 2600);
@@ -860,7 +875,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
   const openExamCopy = (record: ExamRecord) => {
     const copy = structuredClone(record);
     copy.id = "";
-    copy.name = `${record.name}（副本）`;
+    copy.name = "";
     copy.date = localDate();
     copy.createdAt = "";
     copy.updatedAt = "";
@@ -926,7 +941,7 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
 
   const exportJson = () => {
     downloadText(
-      exportAllRecordsToJson(records, practiceRecords),
+      exportAllRecordsToJson(records, practiceRecords, simulationSources),
       `行测轨迹完整备份-${localDate()}.json`,
       "application/json;charset=utf-8",
     );
@@ -977,6 +992,10 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
           ? imported.practiceRecords
           : mergeById(current, imported.practiceRecords),
       );
+    }
+    if (imported.simulationSources !== undefined) {
+      const sources = imported.simulationSources;
+      setSimulationSources((current) => mode === "replace" ? sources : [...new Set([...current, ...sources])]);
     }
     const count = imported.records.length + imported.practiceRecords.length;
     setImported(null);
@@ -1198,13 +1217,17 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
       {formValue && (
         <RecordForm
           initialValue={formValue}
+          simulationSources={simulationSources}
+          onSourcesChange={setSimulationSources}
           onClose={() => setFormValue(null)}
           onSave={saveFormValue}
         />
       )}
       {deleteValue && (
         <DeleteDialog
-          name={deleteValue.record.name}
+          name={deleteValue.kind === "practice"
+            ? createPracticeRecordName(deleteValue.record, deleteValue.record.createdAt)
+            : deleteValue.record.name}
           label={
             deleteValue.kind === "simulation" ? "仿真模拟记录" : "模块练习记录"
           }

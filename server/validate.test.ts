@@ -8,6 +8,16 @@ describe("data API validation", () => {
     const body = { revision: 0, records: createDemoRecords(), practiceRecords: [] };
     expect(validateData(body)).toEqual(body);
   });
+  it("accepts managed sources, including custom and empty lists, but rejects invalid lists", () => {
+    const body = { revision: 0, records: [], practiceRecords: [] };
+    expect(validateData({ ...body, simulationSources: [" 广东 ", "自定义来源"] }).simulationSources).toEqual(["广东", "自定义来源"]);
+    expect(validateData({ ...body, simulationSources: [] }).simulationSources).toEqual([]);
+    expect(validateData(body)).not.toHaveProperty("simulationSources");
+    for (const sources of [null, "广东", [1], [" "], ["广东", "广东"]]) {
+      expect(() => validateData({ ...body, simulationSources: sources })).toThrow();
+    }
+  });
+
   it("rejects duplicate IDs, missing arrays, and invalid versions", () => {
     const record = createDemoRecords()[0];
     expect(() => validateData({ revision: 0, records: [record, record], practiceRecords: [] })).toThrow();

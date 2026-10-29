@@ -20,14 +20,24 @@ function inspect(path) {
     }
     payload[kind] = [...data[kind]].sort((a, b) => a.id.localeCompare(b.id));
   }
-  return { simulation: data.records.length, practice: data.practiceRecords.length, contentSha256: createHash('sha256').update(JSON.stringify(canonical(payload))).digest('hex') };
+  let sourcesSha256;
+  if (data.simulationSources !== undefined) {
+    if (!Array.isArray(data.simulationSources) || data.simulationSources.some(source => typeof source !== 'string' || !source.trim())) throw new Error('来源列表格式不正确。');
+    const sources = data.simulationSources.map(source => source.trim());
+    if (new Set(sources).size !== sources.length) throw new Error('来源列表中存在重复名称。');
+    sourcesSha256 = createHash('sha256').update(JSON.stringify(sources)).digest('hex');
+  }
+  return { simulation: data.records.length, practice: data.practiceRecords.length, contentSha256: createHash('sha256').update(JSON.stringify(canonical(payload))).digest('hex'), sourcesSha256 };
 }
 try {
   const results = paths.map(inspect);
   results.forEach((result, i) => console.log(JSON.stringify({ file: paths[i], ...result })));
   if (results.length === 2) {
-    const equal = results[0].contentSha256 === results[1].contentSha256;
-    console.log(equal ? '两份备份内容一致（忽略导出时间和记录排列顺序）。' : '备份内容不同，请先核对后再切换。');
+    const hasSources = results.every(result => result.sourcesSha256 !== undefined);
+    const equal = results[0].contentSha256 === results[1].contentSha256 && (!hasSources || results[0].sourcesSha256 === results[1].sourcesSha256);
+    console.log(equal
+      ? hasSources ? '两份备份的成绩与来源一致（忽略导出时间和记录排列顺序）。' : '两份备份成绩一致；至少一份旧备份不含来源配置，未比较来源。'
+      : '备份内容不同，请先核对后再切换。');
     if (!equal) process.exitCode = 1;
   }
 } catch (error) { console.error(error.message); process.exitCode = 1; }

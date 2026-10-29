@@ -5,6 +5,7 @@ import {
   buildPracticeDiagnostics,
   calculatePracticeAccuracy,
   calculatePracticeScorePrediction,
+  createPracticeRecordName,
   getPracticeTrend,
   weightedPracticeAccuracy,
 } from "./practice";
@@ -26,6 +27,18 @@ function practice(
 }
 
 describe("module practice analytics", () => {
+  it("names old and new practices using the exercise date and original local creation time", () => {
+    const createdAt = new Date(2026, 8, 3, 9, 5).toISOString();
+    const record = { ...practice("p1", "2026-09-01", 9, 1), createdAt };
+    expect(createPracticeRecordName(record, createdAt)).toBe("2026-09-01 09:05");
+    const edited = { ...record, name: "旧自定义名称", updatedAt: "2026-10-01T06:30:00.000Z", modules: { data: { correct: 1, wrong: 1 } } };
+    expect(createPracticeRecordName(edited, edited.createdAt)).toBe("2026-09-01 09:05");
+    expect(createPracticeRecordName(edited, new Date(2026, 8, 3, 10, 6).toISOString())).toBe("2026-09-01 10:06");
+    expect(createPracticeRecordName(record, "invalid")).toBe("2026-09-01 00:00");
+    expect(createPracticeRecordName(record, "")).toBe("2026-09-01 00:00");
+    expect(record.name).toBe("言语理解_2026-09-01_09-00");
+  });
+
   it("calculates accuracy from correct and wrong answers only", () => {
     expect(calculatePracticeAccuracy({ correct: 7, wrong: 3 })).toBe(70);
   });

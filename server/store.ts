@@ -1,7 +1,8 @@
 import type { Client } from "@libsql/client";
-import type { ExamRecord, PracticeRecord } from "../src/types";
+import type { TrackerData } from "../src/types";
+import { normalizeSimulationSources, withSimulationSources } from "../src/lib/simulation";
 
-export type StoredData = { records: ExamRecord[]; practiceRecords: PracticeRecord[] };
+export type StoredData = TrackerData;
 export function createStore(client: Client, userId: string) {
   let initialization: Promise<void> | undefined;
   async function initialize() {
@@ -22,13 +23,22 @@ export function createStore(client: Client, userId: string) {
       if (!row) throw new Error("Data row unavailable");
       const data = JSON.parse(String(row.payload)) as StoredData;
       if (!Array.isArray(data.records) || !Array.isArray(data.practiceRecords)) throw new Error("Stored data invalid");
-      return { ...data, revision: Number(row.revision) };
+      return { ...withSimulationSources(data), revision: Number(row.revision) };
     },
     async write(revision: number, data: StoredData) {
       await initialize();
+      let sources = data.simulationSources;
+      if (sources === undefined) {
+        const current = await client.execute({
+          sql: "SELECT payload FROM xingce_user_data WHERE user_id = ? AND revision = ?",
+          args: [userId, revision],
+        });
+        if (!current.rows[0]) return null;
+        sources = normalizeSimulationSources(JSON.parse(String(current.rows[0].payload)).simulationSources);
+      }
       const result = await client.execute({
         sql: "UPDATE xingce_user_data SET payload = ?, revision = revision + 1, updated_at = ? WHERE user_id = ? AND revision = ?",
-        args: [JSON.stringify(data), new Date().toISOString(), userId, revision],
+        args: [JSON.stringify({ ...data, simulationSources: normalizeSimulationSources(sources) }), new Date().toISOString(), userId, revision],
       });
       return result.rowsAffected === 1 ? revision + 1 : null;
     },
