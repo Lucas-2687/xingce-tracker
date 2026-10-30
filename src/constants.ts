@@ -71,9 +71,9 @@ export const PRACTICE_MODULES: ModuleDefinition<PracticeModuleKey>[] = [
 // 2026 广东行测题型分值，按用户提供的分值表计分。
 export const SIMULATION_QUESTION_TYPES: Record<ModuleKey, SimulationQuestionType[]> = {
   politics: [
-    { key: "single", name: "单选", questionCount: 4, unitScore: 1 },
-    { key: "multiple", name: "多选", questionCount: 2, unitScore: 1.4 },
-    { key: "trueFalse", name: "判断对错", questionCount: 4, unitScore: 0.8 },
+    { key: "trueFalse", name: "判断题", questionCount: 4, unitScore: 0.8 },
+    { key: "single", name: "单选题", questionCount: 4, unitScore: 1 },
+    { key: "multiple", name: "多选题", questionCount: 2, unitScore: 1.4 },
   ],
   common: [{ key: "common", name: "常识判断", questionCount: 5, unitScore: 0.9 }],
   verbal: [
