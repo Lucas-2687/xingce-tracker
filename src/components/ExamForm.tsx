@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MODULES, PRACTICE_MODULES } from "../constants";
+import { MODULES, PRACTICE_MODULES, SIMULATION_QUESTION_TYPES } from "../constants";
 import {
   createSimulationRecordName,
   normalizeSimulationSources,
@@ -15,6 +15,8 @@ import {
 import {
   calculateModuleScore,
   calculateRecordTotal,
+  calculateQuestionTypeScore,
+  createSimulationAttempt,
   displayModuleScore,
   displayTotalScore,
   validateModuleAttempt,
@@ -47,7 +49,7 @@ function emptyExamFrom(record: ExamRecord | PracticeRecord): ExamRecord {
   const modules = Object.fromEntries(
     MODULES.map((module) => [
       module.key,
-      { correct: 0, wrong: 0, unanswered: 0 },
+      createSimulationAttempt(module.key),
     ]),
   ) as Record<ModuleKey, ModuleAttempt>;
   return {
@@ -258,6 +260,8 @@ function ExamModuleEditor({
 }) {
   const definition = MODULES.find((module) => module.key === moduleKey)!;
   const result = calculateModuleScore(attempt, definition.maxScore);
+  const questionTypes = SIMULATION_QUESTION_TYPES[moduleKey];
+  const detailed = attempt.questionTypeWrongs !== undefined;
   const setNumber = (
     field: "correct" | "wrong" | "unanswered",
     raw: string,
@@ -266,12 +270,12 @@ function ExamModuleEditor({
 
   return (
     <section
-      className="module-editor module-editor--compact"
+      className="module-editor module-editor--compact simulation-editor"
       style={{ "--module-color": definition.color } as React.CSSProperties}
     >
       <div className="module-editor__heading">
         <div>
-          <p className="eyebrow">模块满分 {definition.maxScore}</p>
+          <p className="eyebrow">{detailed ? `共 ${result.questionCount} 题 · ` : ""}模块满分 {definition.maxScore}</p>
           <h3>{definition.name}</h3>
         </div>
         <div className="module-score-preview">
@@ -280,28 +284,75 @@ function ExamModuleEditor({
         </div>
       </div>
 
-      <div className="answer-count-grid">
-        {([
-          ["correct", "答对"],
-          ["wrong", "答错"],
-          ["unanswered", "未作答"],
-        ] as const).map(([field, label]) => (
-          <label className="field" key={field}>
-            <span>{label}</span>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={attempt[field]}
-              onChange={(event) => setNumber(field, event.target.value)}
-            />
-          </label>
-        ))}
-      </div>
+      {detailed ? (
+        <div className="question-type-list">
+          <div className="question-type-columns" aria-hidden="true">
+            <span>题型 / 分值</span><span>错题数</span><span>得分</span>
+          </div>
+          {questionTypes.map((type) => {
+            const wrong = attempt.questionTypeWrongs![type.key];
+            const invalid = !Number.isInteger(wrong) || wrong < 0 || wrong > type.questionCount;
+            const score = calculateQuestionTypeScore(type.questionCount, type.unitScore, wrong);
+            return (
+              <div className="question-type-row" key={type.key}>
+                <div className="question-type-description">
+                  <label htmlFor={`simulation-${moduleKey}-${type.key}`}>{type.name}</label>
+                  <small>{type.questionCount} 题 × {type.unitScore} 分</small>
+                </div>
+                <input
+                  id={`simulation-${moduleKey}-${type.key}`}
+                  aria-label={`${definition.name}·${type.name}错题数`}
+                  aria-invalid={invalid}
+                  aria-describedby={invalid ? `simulation-${moduleKey}-${type.key}-error` : undefined}
+                  type="number"
+                  inputMode="numeric"
+                  min="0"
+                  max={type.questionCount}
+                  step="1"
+                  value={wrong === 0 ? "" : wrong}
+                  placeholder="0"
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => onChange(createSimulationAttempt(moduleKey, {
+                    ...attempt.questionTypeWrongs,
+                    [type.key]: event.target.value === "" ? 0 : Number(event.target.value),
+                  }))}
+                />
+                <output className="question-type-score" aria-label={`${type.name}得分`} aria-live="polite">
+                  {invalid ? "—" : displayTotalScore(score)}<small>/ {type.questionCount * type.unitScore}</small>
+                </output>
+                {invalid && <small className="question-type-error field-error" id={`simulation-${moduleKey}-${type.key}-error`}>请输入 0～{type.questionCount} 的整数</small>}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <>
+          <p className="legacy-scoring-note">此记录只有模块汇总，保留原计分方式。按题型录入时，请重新填写本模块的错题数。</p>
+          <button className="text-button" type="button" onClick={() => onChange(createSimulationAttempt(moduleKey))}>清空本模块，按题型重新填写</button>
+          <div className="answer-count-grid">
+            {([
+              ["correct", "答对"],
+              ["wrong", "答错"],
+              ["unanswered", "未作答"],
+            ] as const).map(([field, label]) => (
+              <label className="field" key={field}>
+                <span>{label}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={attempt[field]}
+                  onChange={(event) => setNumber(field, event.target.value)}
+                />
+              </label>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="score-formula">
         <span>共 {result.questionCount} 题</span>
-        <span>等分每题 {result.automaticUnitScore.toFixed(4)}</span>
+        <span>{detailed ? `错 ${attempt.wrong} 题 · 按题型分值计分` : `等分每题 ${result.automaticUnitScore.toFixed(4)}`}</span>
         <span>
           得分率 {((result.score / definition.maxScore) * 100).toFixed(1)}%
         </span>
@@ -505,6 +556,7 @@ export function RecordForm({ initialValue, simulationSources, onSourcesChange, o
                   correct: attempt.correct,
                   wrong: attempt.wrong,
                   unanswered: attempt.unanswered,
+                  ...(attempt.questionTypeWrongs === undefined ? {} : { questionTypeWrongs: { ...attempt.questionTypeWrongs } }),
                 },
               ];
             }),
@@ -592,7 +644,7 @@ export function RecordForm({ initialValue, simulationSources, onSourcesChange, o
             {lockedKind
               ? "已保存记录的练习类型不可修改。"
               : kind === "simulation"
-                ? "仿真模拟需要完整填写六个模块。"
+                ? "按 2026 广东题型分值计分，共 90 题、满分 100 分。"
                 : "模块练习可填写一个或多个模块，空模块不会保存。"}
           </p>
         </div>
@@ -612,17 +664,17 @@ export function RecordForm({ initialValue, simulationSources, onSourcesChange, o
           <div className="form-section-heading">
             <div>
               <p className="eyebrow">
-                {kind === "simulation" ? "完整作答情况" : "按模块登记"}
+                {kind === "simulation" ? "按题型自动计分" : "按模块登记"}
               </p>
               <h3>
                 {kind === "simulation"
-                  ? "填写全部六大模块"
+                  ? "只填错题数，分数自动算"
                   : "填写本次练习过的模块"}
               </h3>
             </div>
             <p>
               {kind === "simulation"
-                ? "每个模块都必须有作答数量。"
+                ? "空白按 0 错题计算，未作答也请计入错题。"
                 : "答对和答错均为 0 的模块将被忽略。"}
             </p>
           </div>
@@ -697,3 +749,4 @@ export function RecordForm({ initialValue, simulationSources, onSourcesChange, o
     </div>
   );
 }
+

@@ -2,8 +2,19 @@ import { describe, expect, it } from "vitest";
 import { createDemoRecords } from "../src/data/demo";
 import { validateData } from "./validate";
 import { readJson, sameOrigin } from "./http";
+import { createSimulationAttempt, calculateRecordTotal } from "../src/lib/scoring";
 
 describe("data API validation", () => {
+  it("keeps weighted question-type counts through API normalization and rejects tampered aggregates", () => {
+    const record = createDemoRecords()[0];
+    record.modules.reasoning = createSimulationAttempt("reasoning", { logic: 2 });
+    const body = { revision: 0, records: [record], practiceRecords: [] };
+    const normalized = validateData(body);
+    expect(normalized).toEqual(body);
+    expect(calculateRecordTotal(normalized.records[0])).toBeCloseTo(calculateRecordTotal(record));
+    record.modules.reasoning.wrong = 1;
+    expect(() => validateData(body)).toThrow("模块汇总与题型错题数不一致");
+  });
   it("preserves a valid full backup", () => {
     const body = { revision: 0, records: createDemoRecords(), practiceRecords: [] };
     expect(validateData(body)).toEqual(body);
@@ -36,3 +47,4 @@ describe("data API validation", () => {
     await expect(readJson(request, 30)).rejects.toThrow("payload_too_large");
   });
 });
+

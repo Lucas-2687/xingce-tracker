@@ -11,6 +11,8 @@ import {
   parsePracticeCsv,
 } from "./dataTransfer";
 import type { PracticeRecord } from "../types";
+import { MODULES } from "../constants";
+import { calculateRecordTotal, createSimulationAttempt } from "./scoring";
 
 const practiceRecord: PracticeRecord = {
   id: "practice-1",
@@ -30,6 +32,25 @@ const practiceRecord: PracticeRecord = {
 };
 
 describe("data transfer", () => {
+  it("preserves weighted question details and totals in JSON and CSV, including mixed legacy records", () => {
+    const legacy = createDemoRecords()[0];
+    const detailed = { ...legacy, id: "question-types", modules: Object.fromEntries(MODULES.map((module) => [module.key, createSimulationAttempt(module.key)])) as typeof legacy.modules };
+    detailed.modules.reasoning = createSimulationAttempt("reasoning", { logic: 2 });
+    const records = [legacy, detailed];
+    for (const restored of [parseJson(exportRecordsToJson(records)), parseCsv(exportRecordsToCsv(records)), parseBackupJson(exportAllRecordsToJson(records, [])).records]) {
+      expect(restored).toEqual(records);
+      expect(calculateRecordTotal(restored[1])).toBeCloseTo(97.4);
+    }
+  });
+
+  it("rejects malformed or inconsistent question-type backups", () => {
+    const record = createDemoRecords()[0];
+    record.modules.reasoning = createSimulationAttempt("reasoning", { logic: 2 });
+    for (const details of [null, [], {}, { graphic: 0, logic: "2", science: 0 }, { graphic: 0, logic: 16, science: 0 }, { graphic: 0, logic: 1, science: 0 }]) {
+      const invalid = { ...record, modules: { ...record.modules, reasoning: { ...record.modules.reasoning, questionTypeWrongs: details } } };
+      expect(() => parseJson(JSON.stringify({ records: [invalid] }))).toThrow();
+    }
+  });
   it("round-trips a complete JSON backup", () => {
     const source = createDemoRecords().slice(0, 2);
     const restored = parseJson(exportRecordsToJson(source));
@@ -104,3 +125,4 @@ describe("data transfer", () => {
     ).toThrow("模块练习至少需要填写一个模块");
   });
 });
+

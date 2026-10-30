@@ -1,4 +1,4 @@
-import { MODULES, PRACTICE_MODULES } from "../constants";
+import { MODULES, PRACTICE_MODULES, SIMULATION_QUESTION_TYPES } from "../constants";
 import type {
   ExamRecord,
   ModuleAttempt,
@@ -31,6 +31,7 @@ const MODULE_COLUMNS = MODULES.flatMap((module) => [
   `${module.key}_correct`,
   `${module.key}_wrong`,
   `${module.key}_unanswered`,
+  ...SIMULATION_QUESTION_TYPES[module.key].map((type) => `${module.key}_${type.key}_wrong`),
 ]);
 
 export const CSV_COLUMNS = [...BASE_COLUMNS, ...MODULE_COLUMNS];
@@ -87,10 +88,20 @@ const optionalNumber = (value: unknown): number | undefined => {
 
 function normalizeAttempt(raw: unknown): ModuleAttempt {
   const value = (raw ?? {}) as Record<string, unknown>;
+  let questionTypeWrongs: Record<string, number> | undefined;
+  if (value.questionTypeWrongs !== undefined) {
+    if (!value.questionTypeWrongs || typeof value.questionTypeWrongs !== "object" || Array.isArray(value.questionTypeWrongs)) {
+      throw new Error("题型错题数格式不正确");
+    }
+    questionTypeWrongs = Object.fromEntries(Object.entries(value.questionTypeWrongs).map(
+      ([key, wrong]) => [key, typeof wrong === "number" ? wrong : Number.NaN],
+    ));
+  }
   return {
     correct: numberValue(value.correct),
     wrong: numberValue(value.wrong),
     unanswered: numberValue(value.unanswered),
+    ...(questionTypeWrongs === undefined ? {} : { questionTypeWrongs }),
   };
 }
 
@@ -220,6 +231,9 @@ function recordToFlat(record: ExamRecord): Record<string, unknown> {
     flat[`${module.key}_correct`] = attempt.correct;
     flat[`${module.key}_wrong`] = attempt.wrong;
     flat[`${module.key}_unanswered`] = attempt.unanswered;
+    for (const type of SIMULATION_QUESTION_TYPES[module.key]) {
+      flat[`${module.key}_${type.key}_wrong`] = attempt.questionTypeWrongs?.[type.key];
+    }
   }
   return flat;
 }
@@ -342,10 +356,15 @@ function parseCsvRows(content: string): string[][] {
 function flatToRecord(flat: Record<string, unknown>): ExamRecord {
   const modules = {} as Record<ModuleKey, ModuleAttempt>;
   for (const module of MODULES) {
+    const questionTypes = SIMULATION_QUESTION_TYPES[module.key];
+    const hasQuestionTypes = questionTypes.some((type) => textValue(flat[`${module.key}_${type.key}_wrong`]) !== "");
     modules[module.key] = {
       correct: numberValue(flat[`${module.key}_correct`]),
       wrong: numberValue(flat[`${module.key}_wrong`]),
       unanswered: numberValue(flat[`${module.key}_unanswered`]),
+      ...(hasQuestionTypes ? { questionTypeWrongs: Object.fromEntries(questionTypes.map((type) => [
+        type.key, numberValue(flat[`${module.key}_${type.key}_wrong`], Number.NaN),
+      ])) } : {}),
     };
   }
   return normalizeRecord({ ...flat, modules });
@@ -482,3 +501,4 @@ export function parseImportedRecords(
     ? parseCsv(content)
     : parseJson(content);
 }
+

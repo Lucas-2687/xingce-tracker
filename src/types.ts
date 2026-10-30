@@ -14,6 +14,14 @@ export interface ModuleAttempt {
   correct: number;
   wrong: number;
   unanswered: number;
+  questionTypeWrongs?: Record<string, number>;
+}
+
+export interface SimulationQuestionType {
+  key: string;
+  name: string;
+  questionCount: number;
+  unitScore: number;
 }
 
 export interface ExamRecord {
@@ -82,3 +90,4 @@ export interface Diagnostic {
   advice: string;
   available: boolean;
 }
+
