@@ -1,4 +1,4 @@
-import { MODULES, MODULE_MAP } from "../constants";
+import { MODULES, MODULE_MAP, SIMULATION_QUESTION_TYPES } from "../constants";
 import type {
   ExamRecord,
   ModuleAttempt,
@@ -9,6 +9,24 @@ import type {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+export function createSimulationAttempt(
+  moduleKey: ModuleKey,
+  wrongs: Record<string, number> = {},
+): ModuleAttempt {
+  const questionTypes = SIMULATION_QUESTION_TYPES[moduleKey];
+  const questionTypeWrongs = Object.fromEntries(
+    questionTypes.map((type) => [type.key, wrongs[type.key] ?? 0]),
+  );
+  const questionCount = questionTypes.reduce((sum, type) => sum + type.questionCount, 0);
+  const wrong = Object.values(questionTypeWrongs).reduce((sum, count) => sum + count, 0);
+  return { correct: questionCount - wrong, wrong, unanswered: 0, questionTypeWrongs };
+}
+
+export function calculateQuestionTypeScore(questionCount: number, unitScore: number, wrong: number): number {
+  const score = (questionCount - wrong) * unitScore;
+  return Math.round(clamp(Number.isFinite(score) ? score : 0, 0, questionCount * unitScore) * 100) / 100;
+}
+
 export function calculateModuleScore(
   attempt: ModuleAttempt,
   maxScore: number,
@@ -17,7 +35,12 @@ export function calculateModuleScore(
     attempt.correct + attempt.wrong + attempt.unanswered;
   const automaticUnitScore = questionCount > 0 ? maxScore / questionCount : 0;
   const effectiveUnitScore = automaticUnitScore;
-  const rawScore = attempt.correct * effectiveUnitScore;
+  const definition = MODULES.find((module) => module.maxScore === maxScore);
+  const rawScore = attempt.questionTypeWrongs && definition
+    ? SIMULATION_QUESTION_TYPES[definition.key].reduce((sum, type) => sum + calculateQuestionTypeScore(
+        type.questionCount, type.unitScore, attempt.questionTypeWrongs![type.key],
+      ), 0)
+    : attempt.correct * effectiveUnitScore;
 
   return {
     questionCount,
@@ -54,6 +77,25 @@ export function validateModuleAttempt(
   maxScore: number,
 ): string[] {
   const errors: string[] = [];
+  if (attempt.questionTypeWrongs !== undefined) {
+    const definition = MODULES.find((module) => module.maxScore === maxScore);
+    const questionTypes = definition && SIMULATION_QUESTION_TYPES[definition.key];
+    if (!questionTypes || Object.keys(attempt.questionTypeWrongs).length !== questionTypes.length ||
+        Object.keys(attempt.questionTypeWrongs).some((key) => !questionTypes.some((type) => type.key === key))) {
+      return ["题型明细不完整或不属于当前模块"];
+    }
+    for (const type of questionTypes) {
+      const wrong = attempt.questionTypeWrongs[type.key];
+      if (!Number.isInteger(wrong) || wrong < 0 || wrong > type.questionCount) {
+        errors.push(`${type.name}错题数须为 0～${type.questionCount} 的整数`);
+      }
+    }
+    const expected = createSimulationAttempt(definition.key, attempt.questionTypeWrongs);
+    if (attempt.correct !== expected.correct || attempt.wrong !== expected.wrong || attempt.unanswered !== 0) {
+      errors.push("模块汇总与题型错题数不一致");
+    }
+    return errors;
+  }
   const counts = [attempt.correct, attempt.wrong, attempt.unanswered];
 
   if (counts.some((value) => !Number.isInteger(value) || value < 0)) {
@@ -84,3 +126,4 @@ export function displayModuleScore(value: number): string {
 export function displayTotalScore(value: number): string {
   return rounded(value, 1).toFixed(1);
 }
+

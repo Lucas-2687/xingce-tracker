@@ -54,13 +54,25 @@ try {
   assert.equal(initial.revision, 0);
   assert.deepEqual(initial.simulationSources, ['广东', '国考', '粉笔'], 'default sources');
   const record = { id: 'smoke-record', name: '迁移验证练习', date: '2026-10-23', modules: { verbal: { correct: 17, wrong: 3 } }, createdAt: '2026-10-23T00:00:00.000Z', updatedAt: '2026-10-23T00:00:00.000Z' };
-  const data = { revision: 0, records: [], practiceRecords: [record], simulationSources: ['广东', '粉笔', '自定义来源'] };
+  const simulation = {
+    ...record, id: 'smoke-simulation', name: '广东计分验证', type: '广东',
+    modules: {
+      politics: { correct: 10, wrong: 0, unanswered: 0, questionTypeWrongs: { single: 0, multiple: 0, trueFalse: 0 } },
+      common: { correct: 5, wrong: 0, unanswered: 0, questionTypeWrongs: { common: 0 } },
+      verbal: { correct: 15, wrong: 0, unanswered: 0, questionTypeWrongs: { cloze: 0, reading: 0 } },
+      quantitative: { correct: 15, wrong: 0, unanswered: 0, questionTypeWrongs: { sequence: 0, math: 0 } },
+      reasoning: { correct: 23, wrong: 2, unanswered: 0, questionTypeWrongs: { graphic: 0, logic: 2, science: 0 } },
+      data: { correct: 20, wrong: 0, unanswered: 0, questionTypeWrongs: { data: 0 } },
+    },
+  };
+  const data = { revision: 0, records: [simulation], practiceRecords: [record], simulationSources: ['广东', '粉笔', '自定义来源'] };
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify(data) })).status, 200, 'data save');
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify(data) })).status, 409, 'stale data conflict');
   const saved = await (await call('/api/data', { headers })).json();
   assert.equal(saved.revision, 1);
   assert.equal(saved.practiceRecords[0].id, record.id);
   assert.equal(saved.practiceRecords[0].createdAt, record.createdAt);
+  assert.deepEqual(saved.records[0], simulation, 'question-type details survive database save and reload');
   assert.deepEqual(saved.simulationSources, data.simulationSources, 'source persistence');
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ revision: 1, records: [], practiceRecords: [record] }) })).status, 200, 'legacy client save');
   assert.deepEqual((await (await call('/api/data', { headers })).json()).simulationSources, data.simulationSources, 'legacy request preserves sources');
@@ -68,6 +80,8 @@ try {
   assert.deepEqual((await (await call('/api/data', { headers })).json()).simulationSources, [], 'empty source list stays empty');
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ ...data, revision: 3, simulationSources: ['广东', ' 广东 '] }) })).status, 400, 'invalid sources');
   assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ revision: 3, records: [], practiceRecords: [{ ...record, modules: { verbal: { correct: -1, wrong: 0 } } }] }) })).status, 400, 'invalid record');
+  const invalidSimulation = { ...simulation, modules: { ...simulation.modules, reasoning: { ...simulation.modules.reasoning, questionTypeWrongs: { graphic: 0, logic: 16, science: 0 } } } };
+  assert.equal((await call('/api/data', { method: 'PUT', headers, body: JSON.stringify({ revision: 3, records: [invalidSimulation], practiceRecords: [] }) })).status, 400, 'invalid question-type counts');
   const logout = await call('/api/auth/logout', { method: 'POST', headers });
   assert.equal(logout.status, 200, 'logout');
   assert(logout.headers.get('set-cookie')?.includes('Max-Age=0'), 'logout cookie removal');
@@ -93,3 +107,4 @@ try {
     try { rmSync(database + suffix, { force: true }); } catch {}
   }
 }
+

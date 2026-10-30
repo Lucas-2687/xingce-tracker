@@ -2,6 +2,7 @@ import type {
   ModuleDefinition,
   ModuleKey,
   PracticeModuleKey,
+  SimulationQuestionType,
 } from "./types";
 
 export const MODULES: ModuleDefinition<ModuleKey>[] = [
@@ -67,6 +68,30 @@ export const PRACTICE_MODULES: ModuleDefinition<PracticeModuleKey>[] = [
   },
 ];
 
+// 2026 广东行测题型分值，按用户提供的分值表计分。
+export const SIMULATION_QUESTION_TYPES: Record<ModuleKey, SimulationQuestionType[]> = {
+  politics: [
+    { key: "trueFalse", name: "判断题", questionCount: 4, unitScore: 0.8 },
+    { key: "single", name: "单选题", questionCount: 4, unitScore: 1 },
+    { key: "multiple", name: "多选题", questionCount: 2, unitScore: 1.4 },
+  ],
+  common: [{ key: "common", name: "常识判断", questionCount: 5, unitScore: 0.9 }],
+  verbal: [
+    { key: "cloze", name: "选词填空", questionCount: 5, unitScore: 1.1 },
+    { key: "reading", name: "阅读理解", questionCount: 10, unitScore: 1 },
+  ],
+  quantitative: [
+    { key: "sequence", name: "数字推理", questionCount: 5, unitScore: 1 },
+    { key: "math", name: "数学运算", questionCount: 10, unitScore: 1 },
+  ],
+  reasoning: [
+    { key: "graphic", name: "图形推理", questionCount: 5, unitScore: 1 },
+    { key: "logic", name: "逻辑判断", questionCount: 15, unitScore: 1.3 },
+    { key: "science", name: "科学推理", questionCount: 5, unitScore: 1.3 },
+  ],
+  data: [{ key: "data", name: "资料分析", questionCount: 20, unitScore: 1.2 }],
+};
+
 export const MODULE_MAP = Object.fromEntries(
   PRACTICE_MODULES.map((module) => [module.key, module]),
 ) as Record<PracticeModuleKey, ModuleDefinition>;
@@ -80,3 +105,4 @@ export const WINDOW_OPTIONS = [3, 5, 10] as const;
 export const STORAGE_KEY = "xingce-score-dashboard.records.v2";
 export const PRACTICE_STORAGE_KEY =
   "xingce-score-dashboard.practice-records.v1";
+

@@ -35,6 +35,7 @@ import {
   calculateModuleRate,
   calculateModuleScore,
   calculateRecordTotal,
+  createSimulationAttempt,
   displayModuleScore,
   displayTotalScore,
 } from "./lib/scoring";
@@ -61,7 +62,6 @@ import {
 import type {
   Diagnostic,
   ExamRecord,
-  ModuleAttempt,
   ModuleKey,
   PracticeRecord,
   PracticeModuleKey,
@@ -81,13 +81,9 @@ function createBlankRecord(): ExamRecord {
   const modules = Object.fromEntries(
     MODULES.map((module) => [
       module.key,
-      {
-        correct: 0,
-        wrong: 0,
-        unanswered: 0,
-      } satisfies ModuleAttempt,
+      createSimulationAttempt(module.key),
     ]),
-  ) as Record<ModuleKey, ModuleAttempt>;
+  ) as ExamRecord["modules"];
 
   return {
     id: "",
@@ -1253,3 +1249,4 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
     </div>
   );
 }
+

@@ -1702,6 +1702,110 @@ h3 {
   grid-template-columns: repeat(2, 1fr);
 }
 
+.simulation-editor .module-editor__heading {
+  margin-bottom: 18px;
+}
+
+.question-type-columns,
+.question-type-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 90px;
+  align-items: center;
+  gap: 14px;
+}
+
+.question-type-columns {
+  padding-bottom: 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.question-type-columns span:not(:first-child) {
+  text-align: center;
+}
+
+.question-type-row {
+  min-height: 74px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.question-type-description {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.question-type-description label {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.question-type-description small,
+.question-type-score small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.question-type-row input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 8px;
+  color: var(--ink);
+  background: var(--surface-soft);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-input);
+  font-family: Bahnschrift, sans-serif;
+  font-size: 18px;
+  text-align: center;
+}
+
+.question-type-row input[aria-invalid="true"] {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.question-type-score {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--module-color);
+  font-family: Bahnschrift, sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.question-type-error {
+  grid-column: 1 / -1;
+}
+
+.legacy-scoring-note {
+  color: var(--body);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.simulation-editor > .text-button {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 480px) {
+  .simulation-editor { padding: 16px; }
+  .simulation-editor .module-editor__heading { gap: 12px; }
+  .simulation-editor .module-editor__heading > div:first-child { min-width: 0; }
+  .simulation-editor .module-editor__heading h3 { font-size: 22px; }
+  .simulation-editor .module-score-preview strong { font-size: 32px; }
+  .question-type-columns, .question-type-row { grid-template-columns: minmax(0, 1fr) 62px 76px; gap: 8px; }
+  .question-type-description label { font-size: 13px; }
+  .question-type-score { font-size: 20px; }
+}
+
 .score-formula {
   display: flex;
   gap: 18px;
@@ -1906,3 +2010,4 @@ h3 {
     transition-duration: 0.01ms !important;
   }
 }
+
