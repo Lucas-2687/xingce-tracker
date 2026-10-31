@@ -357,7 +357,7 @@ function Dashboard({
                 key={module.key}
                 className={`module-card${selectedModule === module.key ? " is-selected" : ""}`}
                 aria-pressed={selectedModule === module.key}
-                aria-controls="simulation-module-details"
+                aria-controls="simulation-module-summary"
                 style={{ "--module-color": module.color, "--module-soft": module.softColor } as React.CSSProperties}
                 onClick={() => setSelectedModule(module.key)}
               >
@@ -385,7 +385,7 @@ function Dashboard({
         </div>
       </section>
 
-      <section className="module-detail" aria-labelledby="module-detail-title">
+      <section className="module-detail" id="simulation-module-summary" aria-labelledby="module-detail-title">
         <div className="module-detail__copy">
           <span className="module-index" style={{ backgroundColor: selectedDefinition.softColor, color: selectedDefinition.color }}>
             {String(MODULES.findIndex((module) => module.key === selectedModule) + 1).padStart(2, "0")}

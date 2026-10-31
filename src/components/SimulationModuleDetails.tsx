@@ -14,15 +14,15 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
   moduleKey: ModuleKey;
   windowSize: number;
 }) {
+  const questionTypes = SIMULATION_QUESTION_TYPES[moduleKey];
+  if (questionTypes.length <= 1) return null;
   const module = MODULE_MAP[moduleKey];
   const window = getWindow(records, windowSize);
-  const types = SIMULATION_QUESTION_TYPES[moduleKey].map((type) => ({
+  const types = questionTypes.map((type) => ({
     ...type,
     trend: getQuestionTypeTrend(records, moduleKey, type.key, windowSize),
   }));
-  const missing = types.length > 1
-    ? window.filter((record) => record.modules[moduleKey].questionTypeWrongs === undefined).length
-    : 0;
+  const missing = window.filter((record) => record.modules[moduleKey].questionTypeWrongs === undefined).length;
 
   return (
     <section className="section-block" id="simulation-module-details" aria-labelledby="question-type-title">
@@ -60,25 +60,27 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
                 <div><dt>答对</dt><dd>{totals.correct} 题</dd></div>
                 <div><dt>错 / 未答</dt><dd>{totals.missed} 题</dd></div>
               </dl>
-              {latest ? (
-                <LineChart
-                  compact
-                  ariaLabel={`${module.name} · ${type.name}得分率趋势`}
-                  color={module.color}
-                  valueSuffix="%"
-                  rateLabel="得分率"
-                  data={type.trend.map((point) => ({
-                    label: shortDate(point.record.date),
-                    title: `${point.record.date} ${point.record.name}，${point.correct} 对 / ${point.wrong} 错 / ${point.unanswered} 未答，得分 ${displayModuleScore(point.score)}`,
-                    value: point.value,
-                    questionCount: point.questionCount,
-                    accuracy: point.value,
-                  }))}
-                />
-              ) : <div className="chart-empty">当前窗口未录入该题型明细</div>}
+              <div className="question-type-card__trend">
+                {latest ? (
+                  <LineChart
+                    compact
+                    ariaLabel={`${module.name} · ${type.name}得分率趋势`}
+                    color={module.color}
+                    valueSuffix="%"
+                    rateLabel="得分率"
+                    data={type.trend.map((point) => ({
+                      label: shortDate(point.record.date),
+                      title: `${point.record.date} ${point.record.name}，${point.correct} 对 / ${point.wrong} 错 / ${point.unanswered} 未答，得分 ${displayModuleScore(point.score)}`,
+                      value: point.value,
+                      questionCount: point.questionCount,
+                      accuracy: point.value,
+                    }))}
+                  />
+                ) : <div className="chart-empty">当前窗口未录入该题型明细</div>}
+              </div>
               <p className="question-type-card__latest">
                 {latest
-                  ? `最近有明细 · ${shortDate(latest.record.date)} · ${displayModuleScore(latest.score)} / ${displayModuleScore(latest.maxScore)} 分`
+                  ? `最近明细 · ${shortDate(latest.record.date)} · ${displayModuleScore(latest.score)} / ${displayModuleScore(latest.maxScore)} 分`
                   : "补充历史试卷的子题型错题数后，即可显示趋势。"}
               </p>
             </article>
