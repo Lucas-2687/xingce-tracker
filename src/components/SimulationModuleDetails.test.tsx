@@ -28,4 +28,13 @@ describe("simulation question-type details", () => {
     expect(html.indexOf("单选题")).toBeLessThan(html.indexOf("多选题"));
     expect(html).toContain("100.0");
   });
+
+  it("keeps single-type modules in their original module view without a duplicate breakdown", () => {
+    for (const moduleKey of ["common", "data"] as const) {
+      const records = createDemoRecords().slice(0, 2);
+      expect(renderToStaticMarkup(createElement(SimulationModuleDetails, { records, moduleKey, windowSize: 3 }))).toBe("");
+      records[1].modules[moduleKey] = createSimulationAttempt(moduleKey);
+      expect(renderToStaticMarkup(createElement(SimulationModuleDetails, { records, moduleKey, windowSize: 3 }))).toBe("");
+    }
+  });
 });

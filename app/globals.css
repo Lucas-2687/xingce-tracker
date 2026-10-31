@@ -1052,21 +1052,27 @@ h3 {
 
 .question-type-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
   margin-top: 22px;
 }
 
 .question-type-card {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 210px;
+  grid-template-areas: "heading trend stats" "latest trend stats";
+  align-items: center;
+  gap: 6px 22px;
   min-width: 0;
-  padding: 22px;
+  padding: 15px 20px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-top: 3px solid var(--module-color);
+  border-left: 3px solid var(--module-color);
   border-radius: var(--radius-card);
 }
 
 .question-type-card__heading {
+  grid-area: heading;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1083,18 +1089,20 @@ h3 {
 .question-type-card__heading em { font-size: 12px; font-style: normal; }
 
 .question-type-stats {
+  grid-area: stats;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 22px 0 12px;
+  margin: 0;
 }
 .question-type-stats dt { color: var(--muted); font-size: 11px; }
 .question-type-stats dd { margin: 5px 0 0; font: 17px Bahnschrift, sans-serif; }
-.question-type-card .chart-empty { min-height: 84px; }
+.question-type-card__trend { grid-area: trend; min-width: 0; }
+.question-type-card__trend .line-chart { height: 84px; margin: 0; }
+.question-type-card__trend .chart-empty { min-height: 84px; }
 .question-type-card__latest {
-  margin: 12px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+  grid-area: latest;
+  margin: 0;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.6;
@@ -2036,6 +2044,12 @@ h3 {
   .prediction-result { min-height: 260px; }
   .latest-score-card { min-height: 300px; }
   .module-card-grid { grid-template-columns: repeat(2, 1fr); }
+  .question-type-card {
+    grid-template-columns: 230px minmax(0, 1fr);
+    grid-template-areas: "heading trend" "stats trend" "latest trend";
+    row-gap: 12px;
+  }
+  .question-type-card__trend .line-chart { height: 100px; }
   .history-table-wrap { overflow-x: auto; }
   .history-table { min-width: 1050px; }
 }
@@ -2060,6 +2074,14 @@ h3 {
   .section-note { text-align: left; }
   .diagnostic-grid, .module-card-grid, .quick-modules { grid-template-columns: 1fr; }
   .prediction-module-grid { grid-template-columns: 1fr; }
+  .question-type-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "heading" "stats" "trend" "latest";
+    padding: 14px 16px;
+    row-gap: 9px;
+  }
+  .question-type-card__trend .line-chart { height: 64px; }
+  .question-type-card__trend .chart-empty { min-height: 64px; }
   .module-detail { grid-template-columns: 1fr; }
   .module-detail__copy { border-right: 0; border-bottom: 1px solid var(--line); }
   .modal-backdrop { padding: 10px; }
