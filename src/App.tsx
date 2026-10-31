@@ -9,6 +9,7 @@ import {
 } from "./components/ExamForm";
 import { LineChart } from "./components/LineChart";
 import { SimulationModuleDetails } from "./components/SimulationModuleDetails";
+import { SimulationOverview } from "./components/SimulationOverview";
 import {
   PracticeDashboard,
   PracticeHistoryView,
@@ -20,10 +21,8 @@ import { MODULES, MODULE_MAP, WINDOW_OPTIONS } from "./constants";
 import {
   buildDiagnostics,
   getModuleTrend,
-  getTotalTrend,
   getWindow,
   sortRecords,
-  average,
   weightedModuleRate,
 } from "./lib/analytics";
 import {
@@ -245,17 +244,11 @@ function Dashboard({
 }) {
   const sorted = useMemo(() => sortRecords(records), [records]);
   const latest = sorted.at(-1)!;
-  const previous = sorted.at(-2);
-  const latestTotal = calculateRecordTotal(latest);
-  const previousTotal = previous ? calculateRecordTotal(previous) : undefined;
-  const totalChange = previousTotal === undefined ? undefined : latestTotal - previousTotal;
-  const totalTrend = getTotalTrend(records, windowSize);
   const diagnostics = buildDiagnostics(records, windowSize);
   const selectedDefinition = MODULE_MAP[selectedModule];
   const selectedTrend = getModuleTrend(records, selectedModule, windowSize);
   const selectedRates = selectedTrend.map((item) => item.value);
   const recentRecords = getWindow(records, windowSize);
-  const recentAverage = average(recentRecords.map(calculateRecordTotal));
 
   return (
     <main className="dashboard-shell">
@@ -270,58 +263,7 @@ function Dashboard({
         </div>
       </section>
 
-      <section className="overview-grid">
-        <article className="latest-score-card">
-          <div className="card-topline">
-            <div>
-              <p className="eyebrow">最近一套 · {latest.date}</p>
-              <h2>{latest.name}</h2>
-            </div>
-            <button className="text-button" type="button" onClick={() => onEdit(latest)}>编辑</button>
-          </div>
-          <div className="hero-score-row">
-            <div className="hero-score">
-              <strong>{displayTotalScore(latestTotal)}</strong>
-              <span>/ 100</span>
-            </div>
-            <div className={`score-delta${totalChange !== undefined && totalChange < 0 ? " is-down" : ""}`}>
-              {totalChange === undefined ? (
-                <span>第一套基线</span>
-              ) : (
-                <>
-                  <b>{totalChange >= 0 ? "+" : ""}{totalChange.toFixed(1)}</b>
-                  <span>较上一套</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="latest-meta">
-            <span>{latest.type}</span>
-            {latest.durationMinutes && <span>{latest.durationMinutes} 分钟</span>}
-          </div>
-        </article>
-
-        <article className="total-trend-card">
-          <div className="card-topline">
-            <div>
-              <p className="eyebrow">百分制总分</p>
-              <h2>近期总分趋势</h2>
-            </div>
-            <div className="average-stat">
-              <span>窗口均分</span>
-              <strong>{displayTotalScore(recentAverage)}</strong>
-            </div>
-          </div>
-          <LineChart
-            ariaLabel="近期总分趋势折线图"
-            data={totalTrend.map(({ record, value }) => ({
-              label: shortDate(record.date),
-              title: record.name,
-              value,
-            }))}
-          />
-        </article>
-      </section>
+      <SimulationOverview records={records} windowSize={windowSize} onEdit={onEdit} />
 
       <section className="section-block" aria-labelledby="diagnostics-title">
         <div className="section-heading">
