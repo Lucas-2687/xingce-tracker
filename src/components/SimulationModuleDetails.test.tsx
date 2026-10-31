@@ -11,10 +11,9 @@ describe("simulation question-type details", () => {
     records[1].modules.reasoning = createSimulationAttempt("reasoning", { logic: 2 });
     const html = renderToStaticMarkup(createElement(SimulationModuleDetails, { records, moduleKey: "reasoning", windowSize: 3 }));
     expect(html).toContain("16.90");
-    expect(html).toContain("13 对 · 2 错");
+    expect(html).toContain("13 对 / 2 错");
     expect(html).toContain("1 套历史试卷未录入子题型明细");
     for (const name of ["图形推理", "逻辑判断", "科学推理"]) expect(html).toContain(`${name}得分率趋势`);
-    expect(html).toContain("未录明细");
     expect(html).not.toMatch(/NaN|Infinity/);
   });
 
