@@ -16,6 +16,7 @@ interface LineChartProps {
   ariaLabel: string;
   valueSuffix?: string;
   rateLabel?: string;
+  referenceLine?: { value: number; label: string };
 }
 
 const clamp = (value: number) => Math.min(100, Math.max(0, value));
@@ -28,6 +29,7 @@ export function LineChart({
   ariaLabel,
   valueSuffix = "",
   rateLabel = "正确率",
+  referenceLine,
 }: LineChartProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
@@ -58,6 +60,11 @@ export function LineChart({
   const tooltipPoint = activeIndex === null ? undefined : points[activeIndex];
   const tooltipX = tooltipPoint ? Math.min(width - 108, Math.max(8, tooltipPoint.x - 50)) : 0;
   const tooltipY = tooltipPoint ? (tooltipPoint.y < 60 ? tooltipPoint.y + 14 : tooltipPoint.y - 50) : 0;
+  const referenceY = referenceLine && Number.isFinite(referenceLine.value)
+    ? margin.top + (1 - clamp(referenceLine.value) / 100) * plotHeight
+    : undefined;
+  const referenceLabelY = referenceY === undefined ? 0
+    : referenceY < margin.top + 24 ? referenceY + 20 : referenceY - 8;
 
   return (
     <svg
@@ -85,6 +92,13 @@ export function LineChart({
           );
         })}
       <path d={area} fill={color} opacity="0.08" />
+      {referenceY !== undefined && referenceLine && (
+        <g className="chart-reference">
+          <line x1={margin.left} x2={width - margin.right} y1={referenceY} y2={referenceY} stroke={color} strokeOpacity="0.6" strokeWidth="1.5" strokeDasharray="6 5" />
+          <rect x={width - margin.right - 103} y={referenceLabelY - 13} width="103" height="18" rx="4" fill="#fff" fillOpacity="0.94" />
+          <text x={width - margin.right - 5} y={referenceLabelY} textAnchor="end" fill={color} className="chart-reference-label">{referenceLine.label} {referenceLine.value.toFixed(1)}{valueSuffix}</text>
+        </g>
+      )}
       <path d={path} fill="none" stroke={color} strokeWidth={compact ? 5 : 3} strokeLinecap="round" strokeLinejoin="round" />
       {points.map((point, index) => (
         <g key={`${point.label}-${index}`}>
