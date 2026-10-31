@@ -8,6 +8,7 @@ import {
   type RecordFormValue,
 } from "./components/ExamForm";
 import { LineChart } from "./components/LineChart";
+import { SimulationModuleDetails } from "./components/SimulationModuleDetails";
 import {
   PracticeDashboard,
   PracticeHistoryView,
@@ -23,6 +24,7 @@ import {
   getWindow,
   sortRecords,
   average,
+  weightedModuleRate,
 } from "./lib/analytics";
 import {
   exportAllRecordsToJson,
@@ -32,7 +34,6 @@ import {
   type ImportedData,
 } from "./lib/dataTransfer";
 import {
-  calculateModuleRate,
   calculateModuleScore,
   calculateRecordTotal,
   createSimulationAttempt,
@@ -343,25 +344,27 @@ function Dashboard({
             <p className="eyebrow">六大模块</p>
             <h2 id="module-title">模块得分率趋势</h2>
           </div>
-          <p className="section-note">点击模块，查看当前窗口的详细变化。</p>
+          <p className="section-note">数字按窗口内题量加权；点击模块，查看子题型明细与趋势。</p>
         </div>
         <div className="module-card-grid">
           {MODULES.map((module) => {
             const trend = getModuleTrend(records, module.key, windowSize);
             const result = calculateModuleScore(latest.modules[module.key], module.maxScore);
-            const rate = calculateModuleRate(latest, module.key);
+            const rate = weightedModuleRate(recentRecords, module.key);
             return (
               <button
                 type="button"
                 key={module.key}
                 className={`module-card${selectedModule === module.key ? " is-selected" : ""}`}
+                aria-pressed={selectedModule === module.key}
+                aria-controls="simulation-module-details"
                 style={{ "--module-color": module.color, "--module-soft": module.softColor } as React.CSSProperties}
                 onClick={() => setSelectedModule(module.key)}
               >
                 <div className="module-card__heading">
                   <div>
                     <span>{module.name}</span>
-                    <small>满分 {module.maxScore}</small>
+                    <small>窗口加权 · 满分 {module.maxScore}</small>
                   </div>
                   <strong>{rate.toFixed(1)}<em>%</em></strong>
                 </div>
@@ -391,7 +394,7 @@ function Dashboard({
           <h2 id="module-detail-title">{selectedDefinition.name}</h2>
           <p>详细趋势按得分率呈现，题量变化时仍可以直接比较。</p>
           <dl>
-            <div><dt>窗口平均</dt><dd>{average(selectedRates).toFixed(1)}%</dd></div>
+            <div><dt>窗口加权得分率</dt><dd>{weightedModuleRate(recentRecords, selectedModule).toFixed(1)}%</dd></div>
             <div><dt>本次得分率</dt><dd>{(selectedRates.at(-1) ?? 0).toFixed(1)}%</dd></div>
             <div><dt>窗口最好</dt><dd>{Math.max(...selectedRates, 0).toFixed(1)}%</dd></div>
           </dl>
@@ -401,6 +404,7 @@ function Dashboard({
             ariaLabel={`${selectedDefinition.name}详细得分率趋势`}
             color={selectedDefinition.color}
             valueSuffix="%"
+            rateLabel="得分率"
             data={selectedTrend.map(({ record, value }) => {
               const attempt = record.modules[selectedModule];
               return {
@@ -414,6 +418,7 @@ function Dashboard({
           />
         </div>
       </section>
+      <SimulationModuleDetails records={records} moduleKey={selectedModule} windowSize={windowSize} />
     </main>
   );
 }

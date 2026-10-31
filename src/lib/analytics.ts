@@ -1,7 +1,9 @@
-import { MODULES } from "../constants";
+import { MODULES, MODULE_MAP, SIMULATION_QUESTION_TYPES } from "../constants";
 import type { Diagnostic, ExamRecord, ModuleKey } from "../types";
 import {
   calculateModuleRate,
+  calculateModuleScore,
+  calculateQuestionTypeScore,
   calculateRecordTotal,
 } from "./scoring";
 
@@ -29,8 +31,62 @@ export function getWindow(records: ExamRecord[], size: number): ExamRecord[] {
   return sortRecords(records).slice(-size);
 }
 
-function moduleAverageRate(records: ExamRecord[], moduleKey: ModuleKey): number {
-  return average(records.map((record) => calculateModuleRate(record, moduleKey)));
+function weightedRate(points: { value: number; questionCount: number }[]): number {
+  const questions = points.reduce((sum, point) => sum + point.questionCount, 0);
+  return questions > 0
+    ? points.reduce((sum, point) => sum + point.value * point.questionCount, 0) / questions
+    : 0;
+}
+
+export function weightedModuleRate(records: ExamRecord[], moduleKey: ModuleKey): number {
+  return weightedRate(records.map((record) => {
+    const result = calculateModuleScore(record.modules[moduleKey], MODULE_MAP[moduleKey].maxScore);
+    return { value: calculateModuleRate(record, moduleKey), questionCount: result.questionCount };
+  }));
+}
+
+export interface QuestionTypeTrendPoint {
+  record: ExamRecord;
+  questionCount: number;
+  correct: number;
+  wrong: number;
+  unanswered: number;
+  score: number;
+  maxScore: number;
+  value: number;
+}
+
+export function weightedQuestionTypeRate(points: QuestionTypeTrendPoint[]): number {
+  return weightedRate(points);
+}
+
+export function getQuestionTypeTrend(
+  records: ExamRecord[],
+  moduleKey: ModuleKey,
+  questionTypeKey: string,
+  size: number,
+): QuestionTypeTrendPoint[] {
+  const types = SIMULATION_QUESTION_TYPES[moduleKey];
+  const type = types.find((item) => item.key === questionTypeKey);
+  if (!type) return [];
+  return getWindow(records, size).flatMap((record) => {
+    const attempt = record.modules[moduleKey];
+    const maxScore = type.questionCount * type.unitScore;
+    if (attempt.questionTypeWrongs !== undefined) {
+      const wrong = attempt.questionTypeWrongs[type.key];
+      const score = calculateQuestionTypeScore(type.questionCount, type.unitScore, wrong);
+      return [{ record, questionCount: type.questionCount, correct: type.questionCount - wrong,
+        wrong, unanswered: 0, score, maxScore, value: score / maxScore * 100 }];
+    }
+    // A single-type module already has a complete breakdown in legacy totals.
+    // Multi-type modules cannot be reconstructed from aggregate counts.
+    if (types.length !== 1) return [];
+    const result = calculateModuleScore(attempt, MODULE_MAP[moduleKey].maxScore);
+    if (!result.questionCount) return [];
+    return [{ record, questionCount: result.questionCount, correct: attempt.correct,
+      wrong: attempt.wrong, unanswered: attempt.unanswered, score: result.score,
+      maxScore, value: result.score / maxScore * 100 }];
+  });
 }
 
 export function buildDiagnostics(
@@ -45,7 +101,7 @@ export function buildDiagnostics(
     ? (() => {
         const ranked = MODULES.map((module) => ({
           module,
-          value: moduleAverageRate(recent, module.key),
+          value: weightedModuleRate(recent, module.key),
         })).sort((a, b) => a.value - b.value);
         const result = ranked[0];
         return {
@@ -53,7 +109,7 @@ export function buildDiagnostics(
           title: "当前最弱",
           moduleKey: result.module.key,
           metric: result.value,
-          message: `${result.module.name}最近平均得分率 ${result.value.toFixed(1)}%`,
+          message: `${result.module.name}最近加权得分率 ${result.value.toFixed(1)}%`,
           advice: "先把稳定能拿到的基础分补齐，再处理高耗时题。",
           available: true,
         };
@@ -70,8 +126,8 @@ export function buildDiagnostics(
     recent.length === windowSize && previous.length === windowSize
       ? (() => {
           const ranked = MODULES.map((module) => {
-            const recentRate = moduleAverageRate(recent, module.key);
-            const previousRate = moduleAverageRate(previous, module.key);
+            const recentRate = weightedModuleRate(recent, module.key);
+            const previousRate = weightedModuleRate(previous, module.key);
             return { module, change: recentRate - previousRate };
           }).sort((a, b) => a.change - b.change);
           const result = ranked[0];
@@ -148,3 +204,4 @@ export function getModuleTrend(
     value: calculateModuleRate(record, moduleKey),
   }));
 }
+
