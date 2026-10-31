@@ -29,7 +29,7 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
       <div className="section-heading">
         <div>
           <p className="eyebrow">当前模块 · 子题型分析</p>
-          <h2 id="question-type-title">{module.name}的明细与趋势</h2>
+          <h2 id="question-type-title">{module.name}的子题型趋势</h2>
         </div>
         <p className="section-note">沿用近 {windowSize} 套窗口，得分率按题量加权。</p>
       </div>
@@ -63,7 +63,7 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
               <div className="question-type-card__trend">
                 {latest ? (
                   <LineChart
-                    compact
+                    height={180}
                     ariaLabel={`${module.name} · ${type.name}得分率趋势`}
                     color={module.color}
                     valueSuffix="%"
@@ -86,38 +86,6 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
             </article>
           );
         })}
-      </div>
-      <div className="question-type-history">
-        <h3>逐套题型明细</h3>
-        <p>每格显示得分及对错数量；未录明细的题型不参与子题型统计。</p>
-        <div className="history-table-wrap">
-          <table className="history-table question-type-table">
-            <thead>
-              <tr><th scope="col">日期 / 试卷</th>{types.map((type) => <th scope="col" key={type.key}>{type.name}</th>)}</tr>
-            </thead>
-            <tbody>
-              {[...window].reverse().map((record) => (
-                <tr key={record.id}>
-                  <th scope="row"><span>{record.date}</span><small>{record.name}</small></th>
-                  {types.map((type) => {
-                    const point = type.trend.find((item) => item.record.id === record.id);
-                    return (
-                      <td key={type.key}>
-                        {point ? (
-                          <div className="question-type-result">
-                            <strong>{displayModuleScore(point.score)} <small>/ {displayModuleScore(point.maxScore)} 分</small></strong>
-                            <span>{point.correct} 对 · {point.wrong} 错{point.unanswered > 0 && ` · ${point.unanswered} 未答`}</span>
-                          </div>
-                        ) : <span className="question-type-missing">未录明细</span>}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-              {!window.length && <tr><td colSpan={types.length + 1}>录入仿真模拟成绩后显示明细。</td></tr>}
-            </tbody>
-          </table>
-        </div>
       </div>
     </section>
   );

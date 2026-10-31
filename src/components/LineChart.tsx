@@ -12,6 +12,7 @@ interface LineChartProps {
   data: ChartDatum[];
   color?: string;
   compact?: boolean;
+  height?: number;
   ariaLabel: string;
   valueSuffix?: string;
   rateLabel?: string;
@@ -23,6 +24,7 @@ export function LineChart({
   data,
   color = "#4e76bd",
   compact = false,
+  height = compact ? 84 : 248,
   ariaLabel,
   valueSuffix = "",
   rateLabel = "正确率",
@@ -34,7 +36,6 @@ export function LineChart({
   }
 
   const width = 640;
-  const height = compact ? 84 : 248;
   const margin = compact
     ? { top: 8, right: 4, bottom: 8, left: 4 }
     : { top: 18, right: 18, bottom: 38, left: 38 };
