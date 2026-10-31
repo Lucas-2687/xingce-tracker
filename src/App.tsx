@@ -233,14 +233,12 @@ function Dashboard({
   setWindowSize,
   selectedModule,
   setSelectedModule,
-  onEdit,
 }: {
   records: ExamRecord[];
   windowSize: number;
   setWindowSize: (size: number) => void;
   selectedModule: ModuleKey;
   setSelectedModule: (key: ModuleKey) => void;
-  onEdit: (record: ExamRecord) => void;
 }) {
   const sorted = useMemo(() => sortRecords(records), [records]);
   const latest = sorted.at(-1)!;
@@ -263,7 +261,7 @@ function Dashboard({
         </div>
       </section>
 
-      <SimulationOverview records={records} windowSize={windowSize} onEdit={onEdit} />
+      <SimulationOverview records={records} windowSize={windowSize} />
 
       <section className="section-block" aria-labelledby="diagnostics-title">
         <div className="section-heading">
@@ -1114,7 +1112,6 @@ function AuthenticatedApp({ userName, userId, sessionExpiresAt, onLock, onNotice
             setWindowSize={setWindowSize}
             selectedModule={selectedModule}
             setSelectedModule={setSelectedModule}
-            onEdit={openExamEdit}
           />
         ))}
 

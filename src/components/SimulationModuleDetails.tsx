@@ -27,15 +27,11 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
   return (
     <section className="section-block" id="simulation-module-details" aria-labelledby="question-type-title">
       <div className="section-heading">
-        <div>
-          <p className="eyebrow">当前模块 · 子题型分析</p>
-          <h2 id="question-type-title">{module.name}的子题型趋势</h2>
-        </div>
-        <p className="section-note">沿用近 {windowSize} 套窗口，得分率按题量加权。</p>
+        <h2 id="question-type-title">{module.name}的子题型趋势</h2>
       </div>
       {missing > 0 && (
         <p className="question-type-note">
-          窗口内 {missing} 套历史试卷未录入子题型明细，仍计入模块分析，子题型统计仅使用有明细的试卷。
+          {missing} 套缺少题型明细，未计入子题型统计。
         </p>
       )}
       <div className="question-type-grid">
@@ -48,22 +44,27 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
           const latest = type.trend.at(-1);
           return (
             <article className="question-type-card" key={`${moduleKey}-${type.key}`} style={{ "--module-color": module.color } as React.CSSProperties}>
-              <div className="question-type-card__heading">
-                <div>
-                  <h3>{type.name}</h3>
-                  <p>{type.questionCount} 题 × {type.unitScore} 分 · 窗口加权</p>
+              <div className="question-type-card__info">
+                <div className="question-type-card__heading">
+                  <div>
+                    <h3>{type.name}</h3>
+                    <p>{type.questionCount} 题 × {type.unitScore} 分</p>
+                  </div>
+                  <div className="question-type-card__rate">
+                    <span>得分率</span>
+                    <strong>{latest ? weightedQuestionTypeRate(type.trend).toFixed(1) : "—"}{latest && <em>%</em>}</strong>
+                  </div>
                 </div>
-                <strong>{latest ? weightedQuestionTypeRate(type.trend).toFixed(1) : "—"}{latest && <em>%</em>}</strong>
+                <dl className="question-type-stats">
+                  <div><dt>题量</dt><dd>{totals.questions} 题</dd></div>
+                  <div><dt>答对</dt><dd>{totals.correct} 题</dd></div>
+                  <div><dt>错 / 未答</dt><dd>{totals.missed} 题</dd></div>
+                </dl>
               </div>
-              <dl className="question-type-stats">
-                <div><dt>窗口题量</dt><dd>{totals.questions} 题</dd></div>
-                <div><dt>答对</dt><dd>{totals.correct} 题</dd></div>
-                <div><dt>错 / 未答</dt><dd>{totals.missed} 题</dd></div>
-              </dl>
               <div className="question-type-card__trend">
                 {latest ? (
                   <LineChart
-                    height={180}
+                    height={640 / 3}
                     ariaLabel={`${module.name} · ${type.name}得分率趋势`}
                     color={module.color}
                     valueSuffix="%"
@@ -76,13 +77,8 @@ export function SimulationModuleDetails({ records, moduleKey, windowSize }: {
                       accuracy: point.value,
                     }))}
                   />
-                ) : <div className="chart-empty">当前窗口未录入该题型明细</div>}
+                ) : <div className="chart-empty">暂无题型明细</div>}
               </div>
-              <p className="question-type-card__latest">
-                {latest
-                  ? `最近明细 · ${shortDate(latest.record.date)} · ${displayModuleScore(latest.score)} / ${displayModuleScore(latest.maxScore)} 分`
-                  : "补充历史试卷的子题型错题数后，即可显示趋势。"}
-              </p>
             </article>
           );
         })}
