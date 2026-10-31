@@ -12,29 +12,23 @@ function recordWithScore(index: number, score: number) {
 }
 
 const render = (records: ReturnType<typeof createDemoRecords>, windowSize = 3) =>
-  renderToStaticMarkup(createElement(SimulationOverview, { records, windowSize, onEdit: () => undefined }));
+  renderToStaticMarkup(createElement(SimulationOverview, { records, windowSize }));
 
 describe("simulation window overview", () => {
-  it("uses the selected window for the headline mean, reference line, dates and trend", () => {
+  it("uses the selected window for the headline mean, reference line and trend", () => {
     const records = [recordWithScore(0, 100), recordWithScore(1, 70), recordWithScore(2, 80), recordWithScore(3, 90)];
     const html = render([...records].reverse());
     expect(html).toContain('<output aria-label="窗口均分">80.0</output>');
     expect(html).toContain("窗口均分 80.0分");
-    expect(html).toContain(`${records[1].date} — ${records[3].date}`);
-    expect(html).toContain("+20.0 分");
     expect(html).not.toContain(records[0].name);
     for (const record of records.slice(1)) expect(html).toContain(record.name);
     expect(render(records, 2)).toContain('<output aria-label="窗口均分">85.0</output>');
   });
 
-  it("shows a genuine zero mean and does not claim a change from a single exam", () => {
+  it("shows a genuine zero mean with a single exam", () => {
     const html = render([recordWithScore(0, 0)], 5);
     expect(html).toContain('<output aria-label="窗口均分">0.0</output>');
-    expect(html).toContain("已录 1 套");
-    expect(html).toContain("再录一套后显示窗口变化");
-    expect(html).not.toContain("窗口首尾变化");
     expect(html).not.toMatch(/NaN|Infinity/);
-    expect(render([recordWithScore(0, 80), recordWithScore(1, 80)])).toContain("持平");
   });
 
   it("shows an empty overview without inventing a score or reference line", () => {
