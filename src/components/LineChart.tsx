@@ -14,6 +14,7 @@ interface LineChartProps {
   compact?: boolean;
   ariaLabel: string;
   valueSuffix?: string;
+  rateLabel?: string;
 }
 
 const clamp = (value: number) => Math.min(100, Math.max(0, value));
@@ -24,6 +25,7 @@ export function LineChart({
   compact = false,
   ariaLabel,
   valueSuffix = "",
+  rateLabel = "正确率",
 }: LineChartProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
@@ -99,7 +101,7 @@ export function LineChart({
               onFocus={() => setActiveIndex(index)}
               onBlur={() => setActiveIndex(null)}
               tabIndex={0}
-              aria-label={`${point.title}，题量 ${point.questionCount} 题，正确率 ${point.accuracy.toFixed(1)}%`}
+              aria-label={`${point.title}，题量 ${point.questionCount} 题，${rateLabel} ${point.accuracy.toFixed(1)}%`}
             />
           )}
           {!compact && (
@@ -113,9 +115,10 @@ export function LineChart({
         <g transform={`translate(${tooltipX}, ${tooltipY})`} pointerEvents="none">
           <rect width="100" height="38" rx="5" fill="#fff" stroke="#cbdad6" />
           <text x="50" y="15" textAnchor="middle" fill="#18302f" fontSize="10" fontFamily="Aptos, sans-serif">题量 {tooltipPoint.questionCount} 题</text>
-          <text x="50" y="29" textAnchor="middle" fill="#18302f" fontSize="10" fontFamily="Aptos, sans-serif">正确率 {tooltipPoint.accuracy.toFixed(1)}%</text>
+          <text x="50" y="29" textAnchor="middle" fill="#18302f" fontSize="10" fontFamily="Aptos, sans-serif">{rateLabel} {tooltipPoint.accuracy.toFixed(1)}%</text>
         </g>
       )}
     </svg>
   );
 }
+

@@ -345,10 +345,6 @@ export function PracticeDashboard({
           <p>每个点代表一次包含该模块的练习批次。</p>
           <dl>
             <div>
-              <dt>窗口练习</dt>
-              <dd>{selectedTrend.length} 次</dd>
-            </div>
-            <div>
               <dt>窗口题量</dt>
               <dd>{selectedQuestions} 题</dd>
             </div>
@@ -494,3 +490,4 @@ export function PracticeHistoryView({
     </main>
   );
 }
+
